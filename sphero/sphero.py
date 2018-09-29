@@ -1,6 +1,8 @@
 # sphero.py
 
-# TODO: What is SOP2 and does it belong here?
+import asyncio
+
+# TODO: Move to packet.py file and replace with constants.
 SOP2 = {
     'answer': 0xFD,
     'reset_timeout': 0xFE,
@@ -11,20 +13,30 @@ SOP2 = {
 }
 
 class Sphero:
-    """
-    The main Sphero class that is used for interacting with a Sphero device.
+    """The main Sphero class that is used for interacting with a Sphero device.
 
+    Args:
+        address (str): address of the connected sphero
+        options (dict): optional dictionay of options
+            (default: None)
+        options.adapter (obj): sets the adaptor for
+            the connection (default: serial)
+        options.sop2 (int): op2 to be passed
+            to commands (default: 0xFD)
+        options.timeout (int): deadtime between
+            commands in milliseconds (default: 500)
+        options.emit_packet_errors (bool): emit events
+            on packet errors
+        options.peripheral (obj): use an existing
+            Noble peripheral (default: None)
+
+    Example:
+        my_sphero = Sphero("/dev/rfcomm0", { "timeout": 300 })
     """
 
     _default_timeout = 500
 
-    def __init__(self, address, options):
-        """ 
-        Sphero Constructor
-            Args:
-                address
-                options
-        """
+    def __init__(self, address, options=None):
 
         self._busy = False
         self._ready = False
@@ -38,7 +50,6 @@ class Sphero:
         self._emit_packet_errors = False # TODO: check options
         self._ds = {} # TODO: what is this? Rename when it is understood
 
-        # TODO: JS adds more stuff here via mutator need to understand how/why
         raise NotImplementedError
 
     def connect(self, callback):
@@ -50,7 +61,7 @@ class Sphero:
         """
         """
         raise NotImplementedError
-    
+
     def command(self, virtual_device_address, command_name, command_data, callback):
         """
         """
@@ -64,7 +75,7 @@ class Sphero:
         """
         """
         raise NotImplementedError
-    
+
     # TODO: what is the Tx for in this function name
     def control_uart_tx(self, callback):
         """
@@ -110,12 +121,12 @@ class Sphero:
         """
         """
         raise NotImplementedError
-    
+
     def get_voltage_trip_points(self, callback):
         """
         """
         raise NotImplementedError
-    
+
 
     def set_inactivity_timeout(self, time_delay_before_sleep, callback):
         """
@@ -155,7 +166,7 @@ class Sphero:
     # ============================
     # device::sphero functionality
     # ============================
-    
+
     def set_heading(self, heading_in_degrees, callback):
         """
         """
@@ -165,7 +176,7 @@ class Sphero:
         """
         """
         raise NotImplementedError
-    
+
     def set_rotation_rate(self, rotation_rate, callback):
         """
         """
@@ -265,7 +276,7 @@ class Sphero:
         """
         """
         raise NotImplementedError
-    
+
     def set_config_block(self, config_block, callback):
         """
         """
@@ -280,7 +291,7 @@ class Sphero:
         """
         """
         raise NotImplementedError
-    
+
     def get_ssb(self, callback):
         """
         """
@@ -337,6 +348,165 @@ class Sphero:
         raise NotImplementedError
 
     def run_macro(self, macro_id, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def save_temp_macro(self, macro, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def save_macro(self, macro, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def reinit_macro_exec(self, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def abort_macro(self, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def get_macro_status(self, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def set_macro_param(self, parameter_index, value1, value2, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def append_macro_chunk(self, chunk, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def erase_orb_basic_storage(self, area_id, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def append_orb_basic_fragment(self, area_id, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def execute_orb_basic_program(self, area_id, start_line_most_significant_byte, start_line_least_significant_byte, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def abort_orb_basic_program(self, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def submit_value_to_input(self, value, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def commit_to_flash(self, callback):
+        """
+        """
+        raise NotImplementedError
+
+    # =============================
+    # devices::custom functionality
+    # =============================
+
+    def stream_data(self, args):
+        """
+        """
+        raise NotImplementedError
+
+    def color(self, color, luminance, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def random_color(self, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def get_color(self, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def detect_collision(self, options, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def detect_free_fall(self, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def start_calibration(self, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def finish_calibration(self, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def set_default_settings(self, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def stream_odometer(self, samples_per_second, should_stop_streaming):
+        """
+        """
+        raise NotImplementedError
+
+    def stream_velocity(self, samples_per_second, should_stop_streaming):
+        """
+        """
+        raise NotImplementedError
+
+    def stream_accel_one(self, samples_per_second, should_stop_streaming):
+        """
+        """
+        raise NotImplementedError
+
+    def stream_imu_angles(self, samples_per_second, should_stop_streaming):
+        """
+        """
+        raise NotImplementedError
+
+    def stream_accelerometer(self, samples_per_second, should_stop_streaming):
+        """
+        """
+        raise NotImplementedError
+
+    def stream_gyroscope(self, samples_per_second, should_stop_streaming):
+        """
+        """
+        raise NotImplementedError
+
+    def stream_motors_back_emf(self, samples_per_second, should_stop_streaming):
+        """
+        """
+        raise NotImplementedError
+
+    def stop_on_disconnect(self, should_stop_on_disconnect, callback):
+        """
+        """
+        raise NotImplementedError
+
+    def stop(self, callback):
         """
         """
         raise NotImplementedError
