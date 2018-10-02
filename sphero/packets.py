@@ -15,8 +15,27 @@ class PacketParseError(PacketError):
     def __init__(self, message):
         self.message = message
 
+class BufferNotLongEnoughError(PacketParseError):
+    """
+    """
+    def __init__(self, expected_length, actual_length, message=""):
+        PacketParseError.__init__(self, message)
+        self.expected_length = expected_length
+        self.actual_length = actual_length
+
+
+MIN_PACKET_LENGTH = 6
+"""Minimum length of a valid packet"""
+
+# TODO: review public constant vars and make some private or move some.
 START_OF_PACKET_BYTE_1 = 0xFF
 
+# SOP2 for commands
+START_OF_PACKET_BYTE_2_BASE = 0xFC
+START_OF_PACKET_BYTE_2_ANSWER = 0x01
+START_OF_PACKET_BYTE_2_RESET_TIMEOUT = 0x02
+
+# SOP2 for responses
 START_OF_PACKET_BYTE_2_SYNC = 0xFF
 START_OF_PACKET_BYTE_2_ASYNC = 0xFE
 
@@ -76,33 +95,75 @@ class ClientCommandPacket:
 class SpheroResponsePacket:
     """Represents a response packet from a Sphero to the client
 
-    Will parse packet provided to constructor
+    Will try to parse buffer provided to constructor as a packet
+
+    Args:
+        buffer (list): the raw byte buffer to
+        try and parse as a packet
+
+    Raises:
+        PacketParseError if the first bytes
+        in buffer are not a valid packet
+
     """
 
-    def __init__(self, packet):
-        self._checksum = packet[-1]
-        if self._checksum is not _compute_checksum(packet[:-1]):
-            raise PacketParseError("Checksum is not correct")
-
-        self._start_of_packet_byte_1 = packet[0]
-        self._start_of_packet_byte_2 = packet[1]
-        # TODO: tag this as a response SOP2 since it is different than command
-        # TODO: we also probably want to do more with masking the SOP2 bytes for sending since there are two bytes that have different meaning
-        # 0xFC is the base and then we can OR in the other bytes
-        if self._start_of_packet_byte_2 is START_OF_PACKET_BYTE_2_SYNC:
-            self._message_response_byte = packet[3]
-            self._sequence_number_byte = packet[4]
-            self._data_length = packet[5]
-
+    def __init__(self, buffer):
+        if len(buffer) < MIN_PACKET_LENGTH:
+            raise PacketParseError("Buffer is less than the minimum packet length")
+        self._message_response_byte = 0x00
+        self._sequence_number_byte = 0x00
+        self._id_code = 0x00
+        self._start_of_packet_byte_1 = buffer[0]
+        self._start_of_packet_byte_2 = buffer[1]
+        self._is_async = self._start_of_packet_byte_2 is START_OF_PACKET_BYTE_2_ASYNC
+        if self._is_async:
+            self._id_code = buffer[2]
+            self._data_length = buffer[3] << 8 | buffer[4]
         else:
-            self.id_code = packet[3]
-            self._data_length = packet[4] << 8 | packet[5]
+            self._message_response_byte = buffer[2]
+            self._sequence_number_byte = buffer[3]
+            self._data_length = buffer[4]
 
-        self._data = packet[6:-1]
+        if self._data_length < 1:
+            raise PacketParseError("Found invalid data length (less than 1)")
+
+        if self._data_length + 5 > len(buffer):
+            raise BufferNotLongEnoughError(self._data_length + 5, len(buffer))
+
+        # data_length is len(data) + 1 to account for checksum
+        self._data = buffer[5:self._data_length + 4]
+        self._checksum = buffer[self._data_length + 5]
+
         if len(self._data) is not self._data_length - 1:
             raise PacketParseError("Length of data does not match data length byte. length = {:X} dlen = {:X}".format(len(self._data), self._data_length - 1))
+        if self._checksum is not _compute_checksum(buffer[:self._data_length + 5]):
+            raise PacketParseError("Checksum is not correct")
 
-    # TODO: add member methods to get useful data.
+    def is_async(self):
+        """
+        """
+        return self._is_async
+
+    def get_data(self):
+        """
+        """
+        return self._data
+
+    def get_id_code(self):
+        """
+        """
+        return self._id_code
+    
+    def get_message_response(self):
+        """
+        """
+        return self._message_response_byte
+
+    def get_sequence_number(self):
+        """
+        """
+        return self._sequence_number_byte
+
 
 
 

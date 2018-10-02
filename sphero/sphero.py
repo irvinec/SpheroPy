@@ -32,7 +32,26 @@ class Sphero:
         self._class_destroy_event.set()
 
     def _receive_thread_function(self):
-        pass
+        receive_buffer = []
+        while not self._class_destroy_event.is_set():
+            receive_buffer.extend(self._bluetooth_interface.recv(1024))
+            while len(receive_buffer) >= sphero.packets.MIN_PACKET_LENGTH:
+                try:
+                    packet = sphero.packets.SpheroResponsePacket(receive_buffer)
+                except sphero.packets.BufferNotLongEnoughError:
+                    # break out of inner loop so we can fetch more data
+                    break
+                except sphero.packets.PacketParseError:
+                    # this is an error in the packet format
+                    # remove one byte from the buffer and try again
+                    receive_buffer.pop(0)
+                    continue
+
+            if packet.is_async():
+                pass # TODO: implement logic from here down
+            else:
+                pass # TODO: implement logic from here down
+
 
     def _get_and_increment_command_sequence(self):
         result = self._command_sequence_byte
@@ -50,6 +69,8 @@ class Sphero:
 
     # TODO: Need to account for wait and inactivity params
     # TODO: Do we need to let a timeout exist per command?
+    # TODO: need to do something with the wait for response and probably rename to
+    # something like request_response. Wait is up to caller since this is a async function
     async def ping(self, wait_for_response = True, reset_inactivity_timeout = False):
         """
         Returns:
