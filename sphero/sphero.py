@@ -1,11 +1,20 @@
 # sphero.py
 
-# should look at sphero_ros sphero_driver implementation. It looks pretty good but does not hide the right data. https://github.com/mmwise/sphero_ros
+# Should look at sphero_ros sphero_driver implementation.
+# It looks pretty good but does not hide the right data.
+# https://github.com/mmwise/sphero_ros
 
 import asyncio
 import threading
 
 import sphero.packets
+import sphero.commands
+
+__all__ = ['Sphero', 'CommandTimedOutError']
+
+class CommandTimedOutError(Exception):
+    def __init__(self):
+        pass
 
 class Sphero:
     """The main Sphero class that is used for interacting with a Sphero device.
@@ -18,10 +27,11 @@ class Sphero:
         """Timeout value used when waiting for responses"""
         self._command_sequence_byte = 0x00
         """The command sequence byte that needs to be passed when creating synchronous commands"""
+        self._commands_waiting_for_response = {}
 
         # setup thread for receiving responses
         self._class_destroy_event = threading.Event()
-        self._receive_thread = threading.Thread(target = self._receive_thread_function)
+        self._receive_thread = threading.Thread(target = self._receive_thread_run)
         self._receive_thread.daemon = True
         self._receive_thread.start()
 
@@ -31,13 +41,13 @@ class Sphero:
     def __del__(self):
         self._class_destroy_event.set()
 
-    def _receive_thread_function(self):
+    def _receive_thread_run(self):
         receive_buffer = []
         while not self._class_destroy_event.is_set():
             receive_buffer.extend(self._bluetooth_interface.recv(1024))
             while len(receive_buffer) >= sphero.packets.MIN_PACKET_LENGTH:
                 try:
-                    packet = sphero.packets.SpheroResponsePacket(receive_buffer)
+                    response_packet = sphero.packets.SpheroResponsePacket(receive_buffer)
                 except sphero.packets.BufferNotLongEnoughError:
                     # break out of inner loop so we can fetch more data
                     break
@@ -47,10 +57,14 @@ class Sphero:
                     receive_buffer.pop(0)
                     continue
 
-            if packet.is_async():
+            if response_packet.is_async():
                 pass # TODO: implement logic from here down
             else:
-                pass # TODO: implement logic from here down
+                # for ACK/sync responses we only need to call the registered callback.
+                sequence_number = response_packet.get_sequence_number()
+                if sequence_number in self._commands_waiting_for_response:
+                    self._commands_waiting_for_response[sequence_number](response_packet)
+                    # NOTE: it is up to the callback/waiting function to remove the handler.
 
 
     def _get_and_increment_command_sequence(self):
@@ -61,36 +75,29 @@ class Sphero:
 
         return result
 
-
-
-    # ==========================
-    # device::core functionality
-    # ==========================
-
-    # TODO: Need to account for wait and inactivity params
     # TODO: Do we need to let a timeout exist per command?
-    # TODO: need to do something with the wait for response and probably rename to
-    # something like request_response. Wait is up to caller since this is a async function
-    async def ping(self, wait_for_response = True, reset_inactivity_timeout = False):
+    async def ping(self, wait_for_response=True, reset_inactivity_timeout=False):
         """
-        Returns:
-            True if ping succeeded, False if ping timed out
         """
 
+        sequence_number = self._get_and_increment_command_sequence()
         ping_ack_response_event = threading.Event()
-        if self._on_ping_response is None:
-            self._on_ping_response = lambda : ping_ack_response_event.set()
+        if wait_for_response:
+            self._commands_waiting_for_response[sequence_number] = lambda response_packet : ping_ack_response_event.set()
 
-        # TODO: wrap this in a creator function outside of this.
-        ping_command = sphero.packets.ClientCommandPacket(
-            sphero.packets.START_OF_PACKET_BYTE_2_ASYNC,
-            sphero.packets.DEVICE_ID_BYTE_CORE,
-            sphero.packets.COMMAND_ID_BYTE_PING,
-            self._get_and_increment_command_sequence())
+        ping_command = sphero.commands.create_ping_command(
+            sequence_number,
+            wait_for_response,
+            reset_inactivity_timeout)
+
         self._bluetooth_interface.send(ping_command.get_bytes())
-        result = ping_ack_response_event.wait(1.0)
-        ping_ack_response_event.clear()
-        return result
+
+        if wait_for_response:
+            timed_out = not ping_ack_response_event.wait(1.0)
+            del self._commands_waiting_for_response[sequence_number]
+            ping_ack_response_event.clear()
+            if timed_out:
+                raise CommandTimedOutError()
 
     # TODO: what is the Tx for in this function name
     def control_uart_tx(self, callback):

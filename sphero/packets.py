@@ -28,21 +28,16 @@ MIN_PACKET_LENGTH = 6
 """Minimum length of a valid packet"""
 
 # TODO: review public constant vars and make some private or move some.
-START_OF_PACKET_BYTE_1 = 0xFF
+_START_OF_PACKET_1 = 0xFF
 
 # SOP2 for commands
-START_OF_PACKET_BYTE_2_BASE = 0xFC
-START_OF_PACKET_BYTE_2_ANSWER = 0x01
-START_OF_PACKET_BYTE_2_RESET_TIMEOUT = 0x02
+_START_OF_PACKET_2_BASE = 0xFC
+_START_OF_PACKET_2_ANSWER_MASK = 0x01
+_START_OF_PACKET_2_RESET_INACTIVITY_TIMEOUT_MASK = 0x02
 
 # SOP2 for responses
-START_OF_PACKET_BYTE_2_SYNC = 0xFF
-START_OF_PACKET_BYTE_2_ASYNC = 0xFE
-
-DEVICE_ID_BYTE_CORE = 0x00
-DEVICE_ID_BYTE_SPHERO = 0x02
-
-COMMAND_ID_BYTE_PING = 0x01
+_START_OF_PACKET_2_SYNC = 0xFF
+_START_OF_PACKET_2_ASYNC = 0xFE
 
 ID_CODE_POWER_NOTIFICATION = 0x01
 ID_CODE_LEVEL_1_DIAGNOSTICS = 0x02
@@ -67,27 +62,29 @@ class ClientCommandPacket:
     """Represents a command packet sent from the client to a Sphero device
     """
     def __init__(self,
-        start_of_packet_byte_2,
         device_id_byte,
         command_id_byte,
-        sequence_number_byte = 0x00,
-        data = []):
-        if start_of_packet_byte_2 < 0xF8 or start_of_packet_byte_2 > 0xFF:
-            raise PacketCreationError("Start of Packet Byte 2 was outside the allowed range. SOP2 = {:X}".format(start_of_packet_byte_2))
+        sequence_number=0x00,
+        data=[],
+        wait_for_response=True,
+        reset_inactivity_timeout=False):
+
+        start_of_packet_byte_2 = _START_OF_PACKET_2_BASE
+        if wait_for_response:
+            start_of_packet_byte_2 |= _START_OF_PACKET_2_ANSWER_MASK
+        if reset_inactivity_timeout:
+            start_of_packet_byte_2 |= _START_OF_PACKET_2_RESET_INACTIVITY_TIMEOUT_MASK
 
         self._packet = [
-            START_OF_PACKET_BYTE_1,
+            _START_OF_PACKET_1,
             start_of_packet_byte_2,
             device_id_byte,
             command_id_byte,
-            sequence_number_byte,
+            sequence_number,
             max(len(data) + 1, 0xFF),
-            ].extend(data)
+        ].extend(data)
 
         self._packet.append(_compute_checksum(self._packet))
-
-    def get_packet(self):
-        return self._packet
 
     def get_bytes(self):
         return bytes(self._packet)
@@ -115,7 +112,7 @@ class SpheroResponsePacket:
         self._id_code = 0x00
         self._start_of_packet_byte_1 = buffer[0]
         self._start_of_packet_byte_2 = buffer[1]
-        self._is_async = self._start_of_packet_byte_2 is START_OF_PACKET_BYTE_2_ASYNC
+        self._is_async = self._start_of_packet_byte_2 is _START_OF_PACKET_2_ASYNC
         if self._is_async:
             self._id_code = buffer[2]
             self._data_length = buffer[3] << 8 | buffer[4]
