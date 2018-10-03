@@ -32,9 +32,11 @@ class BluetoothInterface:
                             break
                 if found_device:
                     break
+                else:
+                    raise RuntimeError("Could not find device with name {}".format(self._target_name))
 
         self._sock = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
-        self._sock.connect(self._target_address, self._port)
+        self._sock.connect((self._target_address, self._port))
 
     def send(self, data):
         self._sock.send(data)
@@ -43,4 +45,5 @@ class BluetoothInterface:
         return self._sock.recv(num_bytes)
 
     def close(self):
-        self._sock.close()
+        if self._sock is not None:
+            self._sock.close()
