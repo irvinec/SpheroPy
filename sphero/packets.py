@@ -1,6 +1,8 @@
 # packets.py
 
 class PacketError(Exception):
+    """
+    """
     pass
 
 class PacketCreationError(PacketError):
@@ -62,24 +64,24 @@ class ClientCommandPacket:
     """Represents a command packet sent from the client to a Sphero device
     """
     def __init__(self,
-        device_id_byte,
-        command_id_byte,
+        device_id,
+        command_id,
         sequence_number=0x00,
         data=[],
         wait_for_response=True,
         reset_inactivity_timeout=False):
 
-        start_of_packet_byte_2 = _START_OF_PACKET_2_BASE
+        start_of_packet_2 = _START_OF_PACKET_2_BASE
         if wait_for_response:
-            start_of_packet_byte_2 |= _START_OF_PACKET_2_ANSWER_MASK
+            start_of_packet_2 |= _START_OF_PACKET_2_ANSWER_MASK
         if reset_inactivity_timeout:
-            start_of_packet_byte_2 |= _START_OF_PACKET_2_RESET_INACTIVITY_TIMEOUT_MASK
+            start_of_packet_2 |= _START_OF_PACKET_2_RESET_INACTIVITY_TIMEOUT_MASK
 
         self._packet = [
             _START_OF_PACKET_1,
-            start_of_packet_byte_2,
-            device_id_byte,
-            command_id_byte,
+            start_of_packet_2,
+            device_id,
+            command_id,
             sequence_number,
             max(len(data) + 1, 0xFF),
         ].extend(data)

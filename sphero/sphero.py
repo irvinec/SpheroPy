@@ -13,14 +13,16 @@ import sphero.commands
 __all__ = ['Sphero', 'CommandTimedOutError']
 
 class CommandTimedOutError(Exception):
+    """
+    """
     def __init__(self):
-        pass
+        Exception.__init__(self)
 
 class Sphero:
     """The main Sphero class that is used for interacting with a Sphero device.
     """
 
-    def __init__(self, bluetooth_interface, response_timeout = 0.5):
+    def __init__(self, bluetooth_interface, response_timeout=0.5):
         self._bluetooth_interface = bluetooth_interface
         """Bluetooth interface object that implements send and receive"""
         self._response_timeout = response_timeout
@@ -31,7 +33,7 @@ class Sphero:
 
         # setup thread for receiving responses
         self._class_destroy_event = threading.Event()
-        self._receive_thread = threading.Thread(target = self._receive_thread_run)
+        self._receive_thread = threading.Thread(target=self._receive_thread_run)
         self._receive_thread.daemon = True
         self._receive_thread.start()
 
