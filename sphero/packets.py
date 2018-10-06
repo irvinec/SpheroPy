@@ -8,26 +8,30 @@ class PacketError(Exception):
 class PacketCreationError(PacketError):
     """
     """
+
     def __init__(self, message):
+        PacketError.__init__(self)
         self.message = message
 
 class PacketParseError(PacketError):
     """
     """
+
     def __init__(self, message):
+        PacketError.__init__(self)
         self.message = message
 
 class BufferNotLongEnoughError(PacketParseError):
     """
     """
+
     def __init__(self, expected_length, actual_length, message=""):
         PacketParseError.__init__(self, message)
         self.expected_length = expected_length
         self.actual_length = actual_length
 
-
+# Minimum length of a valid packet
 MIN_PACKET_LENGTH = 6
-"""Minimum length of a valid packet"""
 
 # TODO: review public constant vars and make some private or move some.
 _START_OF_PACKET_1 = 0xFF
@@ -46,30 +50,38 @@ ID_CODE_LEVEL_1_DIAGNOSTICS = 0x02
 # TODO: Fill the rest out if it makes sense.
 
 def _compute_checksum(packet):
-    """Computes the checksum of a packet in list of byte form
+    """Computes the checksum byte of a packet.
 
-        Args:
-            packet (list): List of bytes for a packet.
-                packet must not contain a checksum
-                as the last element
+    Packet must not contain a checksum already
 
-        Returns:
-            The computed checksum
+    Args:
+        packet (list): List of bytes for a packet.
+            packet must not contain a checksum
+            as the last element
+
+    Returns:
+        The computed checksum byte
     """
 
-    return ~(sum(packet[2:]) % 256)
+    # checksum is the sum of the bytes
+    # from device id to the end of the data
+    # mod (%) 256 and bit negated (~) (1's compliment)
+    # and (&) with 0xFF to make sure it is a byte.
+    return ~(sum(packet[2:]) % 0x100) & 0xFF
 
 
-class ClientCommandPacket:
-    """Represents a command packet sent from the client to a Sphero device
+class ClientCommandPacket(object):
+    """Represents a command packet sent from the client to a Sphero.
     """
-    def __init__(self,
-        device_id,
-        command_id,
-        sequence_number=0x00,
-        data=[],
-        wait_for_response=True,
-        reset_inactivity_timeout=False):
+
+    def __init__(
+            self,
+            device_id,
+            command_id,
+            sequence_number=0x00,
+            data=[],
+            wait_for_response=True,
+            reset_inactivity_timeout=True):
 
         start_of_packet_2 = _START_OF_PACKET_2_BASE
         if wait_for_response:
@@ -83,15 +95,24 @@ class ClientCommandPacket:
             device_id,
             command_id,
             sequence_number,
-            max(len(data) + 1, 0xFF),
-        ].extend(data)
+            min(len(data) + 1, 0xFF),
+        ]
 
+        self._packet.extend(data)
         self._packet.append(_compute_checksum(self._packet))
 
     def get_bytes(self):
+        """Get the ClientCommandPacket as a bytes object.
+
+        Used to send the packet to the Sphero.
+
+        Returns:
+            The ClientCommandPacket as bytes.
+        """
+
         return bytes(self._packet)
 
-class SpheroResponsePacket:
+class SpheroResponsePacket(object):
     """Represents a response packet from a Sphero to the client
 
     Will try to parse buffer provided to constructor as a packet
@@ -109,6 +130,7 @@ class SpheroResponsePacket:
     def __init__(self, buffer):
         if len(buffer) < MIN_PACKET_LENGTH:
             raise PacketParseError("Buffer is less than the minimum packet length")
+
         self._message_response_byte = 0x00
         self._sequence_number_byte = 0x00
         self._id_code = 0x00
@@ -130,12 +152,18 @@ class SpheroResponsePacket:
             raise BufferNotLongEnoughError(self._data_length + 5, len(buffer))
 
         # data_length is len(data) + 1 to account for checksum
+        # TODO: see if we can give names to some of these magic numbers
         self._data = buffer[5:self._data_length + 4]
-        self._checksum = buffer[self._data_length + 5]
+        self._checksum = buffer[self._data_length + 4]
 
         if len(self._data) is not self._data_length - 1:
-            raise PacketParseError("Length of data does not match data length byte. length = {:X} dlen = {:X}".format(len(self._data), self._data_length - 1))
-        if self._checksum is not _compute_checksum(buffer[:self._data_length + 5]):
+            raise PacketParseError(
+                ("Length of data does not match data length byte. "
+                 "length = {:X} dlen = {:X}".format(
+                     len(self._data),
+                     self._data_length - 1)))
+
+        if self._checksum is not _compute_checksum(buffer[:self._data_length + 4]):
             raise PacketParseError("Checksum is not correct")
 
     def is_async(self):
@@ -152,7 +180,7 @@ class SpheroResponsePacket:
         """
         """
         return self._id_code
-    
+
     def get_message_response(self):
         """
         """
@@ -163,6 +191,7 @@ class SpheroResponsePacket:
         """
         return self._sequence_number_byte
 
-
-
-
+    def get_packet_length(self):
+        """
+        """
+        return self._data_length + 5

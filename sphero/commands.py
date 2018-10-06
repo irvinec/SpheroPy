@@ -7,9 +7,13 @@ DEVICE_ID_SPHERO = 0x02
 
 COMMAND_ID_PING = 0x01
 
-def create_ping_command(sequence_number=0x00, wait_for_response=True, reset_inactivity_timeout=False):
+def create_ping_command(
+        sequence_number=0x00,
+        wait_for_response=True,
+        reset_inactivity_timeout=True):
     """
     """
+
     return sphero.packets.ClientCommandPacket(
         device_id=DEVICE_ID_CORE,
         command_id=COMMAND_ID_PING,

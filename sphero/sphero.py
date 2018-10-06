@@ -4,7 +4,7 @@
 # It looks pretty good but does not hide the right data.
 # https://github.com/mmwise/sphero_ros
 
-import asyncio
+#import asyncio
 import threading
 
 import sphero.packets
@@ -13,12 +13,12 @@ import sphero.commands
 __all__ = ['Sphero', 'CommandTimedOutError']
 
 class CommandTimedOutError(Exception):
-    """
-    """
+    """Exception thrown when a command times out."""
+
     def __init__(self):
         Exception.__init__(self)
 
-class Sphero:
+class Sphero(object):
     """The main Sphero class that is used for interacting with a Sphero device.
     """
 
@@ -27,7 +27,7 @@ class Sphero:
         """Bluetooth interface object that implements send and receive"""
         self._response_timeout = response_timeout
         """Timeout value used when waiting for responses"""
-        self._command_sequence_byte = 0x00
+        self._command_sequence_number = 0x00
         """The command sequence byte that needs to be passed when creating synchronous commands"""
         self._commands_waiting_for_response = {}
 
@@ -47,9 +47,14 @@ class Sphero:
         receive_buffer = []
         while not self._class_destroy_event.is_set():
             receive_buffer.extend(self._bluetooth_interface.recv(1024))
+            response_packet = None
             while len(receive_buffer) >= sphero.packets.MIN_PACKET_LENGTH:
                 try:
                     response_packet = sphero.packets.SpheroResponsePacket(receive_buffer)
+                    # we have a valid response to handle
+                    # break out of the inner while loop to handle
+                    # the response
+                    break
                 except sphero.packets.BufferNotLongEnoughError:
                     # break out of inner loop so we can fetch more data
                     break
@@ -59,6 +64,11 @@ class Sphero:
                     receive_buffer.pop(0)
                     continue
 
+            # TODO: need to refactor this loop
+            # to not have so many breaks and continues.
+            if response_packet is None:
+                continue
+
             if response_packet.is_async():
                 pass # TODO: implement logic from here down
             else:
@@ -67,25 +77,38 @@ class Sphero:
                 if sequence_number in self._commands_waiting_for_response:
                     self._commands_waiting_for_response[sequence_number](response_packet)
                     # NOTE: it is up to the callback/waiting function to remove the handler.
+            # remove the packet we just handled
+            del receive_buffer[:response_packet.get_packet_length()]
 
 
-    def _get_and_increment_command_sequence(self):
-        result = self._command_sequence_byte
-        self._command_sequence_byte += 1
-        if self._command_sequence_byte > 0xFF:
-            self._command_sequence_byte = 0x00
+    def _get_and_increment_command_sequence_number(self):
+        result = self._command_sequence_number
+        self._command_sequence_number += 1
+        if self._command_sequence_number > 0xFF:
+            self._command_sequence_number = 0x00
 
         return result
 
     # TODO: Do we need to let a timeout exist per command?
-    async def ping(self, wait_for_response=True, reset_inactivity_timeout=False):
-        """
+    async def ping(self, wait_for_response=True, reset_inactivity_timeout=True):
+        """Sends ping command to the Sphero
+
+        The Ping command is used to verify both a solid data link with the client
+        and that Sphero is awake and dispatching commands.
+
+        Args:
+            wait_for_response (bool, True): If True, will wait for
+                a response from the Sphero
+            reset_inactivity_timeout (bool, True): If True, will
+                reset the inactivity timer on the Sphero.
         """
 
-        sequence_number = self._get_and_increment_command_sequence()
+        sequence_number = self._get_and_increment_command_sequence_number()
         ping_ack_response_event = threading.Event()
         if wait_for_response:
-            self._commands_waiting_for_response[sequence_number] = lambda response_packet : ping_ack_response_event.set()
+            self._commands_waiting_for_response[sequence_number] = (
+                lambda response_packet: ping_ack_response_event.set()
+            )
 
         ping_command = sphero.commands.create_ping_command(
             sequence_number,
@@ -95,7 +118,7 @@ class Sphero:
         self._bluetooth_interface.send(ping_command.get_bytes())
 
         if wait_for_response:
-            timed_out = not ping_ack_response_event.wait(1.0)
+            timed_out = not ping_ack_response_event.wait(self._response_timeout)
             del self._commands_waiting_for_response[sequence_number]
             ping_ack_response_event.clear()
             if timed_out:
@@ -357,7 +380,7 @@ class Sphero:
         """
         raise NotImplementedError
 
-    def level_up_attr(self, password, id, callback):
+    def level_up_attr(self, password, id_, callback):
         """
         """
         raise NotImplementedError
@@ -422,7 +445,11 @@ class Sphero:
         """
         raise NotImplementedError
 
-    def execute_orb_basic_program(self, area_id, start_line_most_significant_byte, start_line_least_significant_byte, callback):
+    def execute_orb_basic_program(self,
+                                  area_id,
+                                  start_line_most_significant_byte,
+                                  start_line_least_significant_byte,
+                                  callback):
         """
         """
         raise NotImplementedError
