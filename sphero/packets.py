@@ -79,13 +79,17 @@ class ClientCommandPacket(object):
             device_id,
             command_id,
             sequence_number=0x00,
-            data=[],
+            data=None,
             wait_for_response=True,
             reset_inactivity_timeout=True):
+
+        if data is None:
+            data = []
 
         start_of_packet_2 = _START_OF_PACKET_2_BASE
         if wait_for_response:
             start_of_packet_2 |= _START_OF_PACKET_2_ANSWER_MASK
+
         if reset_inactivity_timeout:
             start_of_packet_2 |= _START_OF_PACKET_2_RESET_INACTIVITY_TIMEOUT_MASK
 
