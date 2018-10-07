@@ -34,6 +34,8 @@ class BufferNotLongEnoughError(PacketParseError):
 MIN_PACKET_LENGTH = 6
 
 # TODO: review public constant vars and make some private or move some.
+# Also might want to move some of these to their respective classes
+# to scope them.
 _START_OF_PACKET_1 = 0xFF
 
 # SOP2 for commands
@@ -116,6 +118,12 @@ class ClientCommandPacket(object):
 
         return bytes(self._packet)
 
+    def get_sequence_number(self):
+        """
+        """
+
+        return self._packet[4]
+
 class SpheroResponsePacket(object):
     """Represents a response packet from a Sphero to the client
 
@@ -128,7 +136,6 @@ class SpheroResponsePacket(object):
     Raises:
         PacketParseError if the first bytes
         in buffer are not a valid packet
-
     """
 
     def __init__(self, buffer):

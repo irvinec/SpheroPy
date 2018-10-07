@@ -17,6 +17,14 @@ async def main():
     await my_sphero.ping()
     await my_sphero.ping()
 
+    # Ping the Sphero a few times,
+    # but don't wait until all have been started.
+    await asyncio.gather(
+        my_sphero.ping(),
+        my_sphero.ping(),
+        my_sphero.ping()
+    )
+
     # Ping the sphero but don't request/wait for a response
     await my_sphero.ping(wait_for_response=False)
 
