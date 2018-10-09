@@ -39,8 +39,6 @@ class Sphero(object):
     def __del__(self):
         self._class_destroy_event.set()
 
-    # TODO: maybe refactor some common params into
-    # a helper class or **kwargs. **kwargs, might make more sense.
 
     async def ping(
             self,
@@ -53,11 +51,11 @@ class Sphero(object):
         and that Sphero is awake and dispatching commands.
 
         Args:
-            wait_for_response (bool, True): If True, will wait for
-                a response from the Sphero
-            reset_inactivity_timeout (bool, True): If True, will
-                reset the inactivity timer on the Sphero.
-            response_inactivity_timeout_in_seconds (float, None):
+            wait_for_response (bool, True):
+                If True, will wait for a response from the Sphero
+            reset_inactivity_timeout (bool, True):
+                If True, will reset the inactivity timer on the Sphero.
+            response_timeout_in_seconds (float, None):
                 The amount of time to wait for a response.
                 If not specified or None, uses the default timeout
                 passed in the constructor of this Sphero object.
@@ -73,9 +71,9 @@ class Sphero(object):
         # so no need tp return anything.
         await self._send_command(
             ping_command,
-            sequence_number,
-            wait_for_response,
-            response_timeout_in_seconds)
+            sequence_number=sequence_number,
+            wait_for_response=wait_for_response,
+            response_timeout_in_seconds=response_timeout_in_seconds)
 
 
     async def roll(
@@ -87,25 +85,46 @@ class Sphero(object):
             response_timeout_in_seconds=None):
         """Sends the roll command to the Sphero with given heading and speed.
 
-        This commands Sphero to roll along the provided vector.
-        Both a speed and a heading are required.
-        The heading is considered relative to the last calibrated direction.
+        This commands Sphero to roll along the provided vector
+        determined by heading_in_degrees and speed.
+        The heading is relative to the last calibrated direction.
 
-        The client convention for heading follows the 360 degrees on a circle, relative to the ball:
+        The heading follows the 360 degrees on a circle, relative to the Sphero:
             * 0 is straight ahead.
             * 90 is to the right.
             * 180 is back.
             * 270 is to the left.
 
-        The valid range for heading is 0 to 359.
-
         Args:
-            speed (float):
+            speed (int):
+                The relative speed with which to roll the Sphero.
+                The valid range is [0, 255].
             heading_in_degrees (int):
+                The relative heading in degrees.
+                The valid range is [0, 359]
+            wait_for_response (bool, True):
+                If True, will wait for a response from the Sphero
+            reset_inactivity_timeout (bool, True):
+            If True, will reset the inactivity timer on the Sphero.
+            response_timeout_in_seconds (float, None):
+                The amount of time to wait for a response.
+                If not specified or None, uses the default timeout
+                passed in the constructor of this Sphero object.
         """
 
         sequence_number = self._get_and_increment_command_sequence_number()
-        # TODO: finish implementing roll.
+        roll_command = sphero.commands.create_roll_command(
+            speed,
+            heading_in_degrees,
+            sequence_number=sequence_number,
+            wait_for_response=wait_for_response,
+            reset_inactivity_timeout=reset_inactivity_timeout)
+
+        await self._send_command(
+            roll_command,
+            sequence_number=sequence_number,
+            wait_for_response=wait_for_response,
+            response_timeout_in_seconds=response_timeout_in_seconds)
 
 
     async def _send_command(
