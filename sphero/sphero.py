@@ -76,6 +76,65 @@ class Sphero(object):
             response_timeout_in_seconds=response_timeout_in_seconds)
 
 
+    async def set_rgb_led(
+            self,
+            red=0,
+            green=0,
+            blue=0,
+            save_as_user_led_color=False,
+            wait_for_response=True,
+            reset_inactivity_timeout=True,
+            response_timeout_in_seconds=None):
+        """Sets the main LED RGB color of the Sphero.
+
+        The composite value is stored as the "application LED color"
+        and immediately driven to the LED
+        (if not overridden by a macro or orbBasic operation).
+        If save_as_user_led_color is True, the value is also saved
+        as the "user LED color" which persists across power cycles
+        and is rendered in the gap between an application connecting
+        and sending this command.
+
+        Args:
+            red (int):
+                The red channel value.
+                Valid range is [0, 255].
+            green (int):
+                The green channel value.
+                Valid range is [0, 255].
+            blue (int):
+                The blue channel value.
+                Valid range is [0, 255].
+            save_as_user_led_color (bool, False):
+                If True, the color will be saved as the user color
+                and will persist across power cycles.
+            wait_for_response (bool, True):
+                If True, will wait for a response from the Sphero
+            reset_inactivity_timeout (bool, True):
+                If True, will reset the inactivity timer on the Sphero.
+            response_timeout_in_seconds (float, None):
+                The amount of time to wait for a response.
+                If not specified or None, uses the default timeout
+                passed in the constructor of this Sphero object.
+        """
+
+        sequence_number = self._get_and_increment_command_sequence_number()
+        set_rgb_led_command = sphero.commands.create_set_rgb_led_command(
+            red,
+            green,
+            blue,
+            save_as_user_led_color,
+            sequence_number,
+            wait_for_response,
+            reset_inactivity_timeout)
+
+        await self._send_command(
+            set_rgb_led_command,
+            sequence_number=sequence_number,
+            wait_for_response=wait_for_response,
+            response_timeout_in_seconds=response_timeout_in_seconds)
+
+
     async def roll(
             self,
             speed,

@@ -1,4 +1,5 @@
-# ping_test.py
+"""
+"""
 
 import asyncio
 import sphero

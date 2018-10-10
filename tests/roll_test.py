@@ -1,7 +1,7 @@
-# ping_test.py
+"""
+"""
 
 import asyncio
-import sched
 import time
 import sphero
 
