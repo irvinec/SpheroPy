@@ -7,6 +7,7 @@ _DEVICE_ID_SPHERO = 0x02
 
 _COMMAND_ID_PING = 0x01
 _COMMAND_ID_SET_RGB_LED = 0x20
+_COMMAND_ID_GET_RGB_LED = 0x22
 _COMMAND_ID_ROLL = 0x30
 
 def create_ping_command(
@@ -49,6 +50,22 @@ def create_set_rgb_led_command(
         command_id=_COMMAND_ID_SET_RGB_LED,
         sequence_number=sequence_number,
         data=[red, green, blue, 1 if save_as_user_led_color else 0],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
+
+
+def create_get_rgb_led_command(
+        sequence_number=0x00,
+        wait_for_response=True,
+        reset_inactivity_timeout=True):
+    """
+    """
+
+    return sphero.packets.ClientCommandPacket(
+        device_id=_DEVICE_ID_SPHERO,
+        command_id=_COMMAND_ID_GET_RGB_LED,
+        sequence_number=sequence_number,
+        data=[],
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
 

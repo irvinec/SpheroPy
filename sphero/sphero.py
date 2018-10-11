@@ -135,6 +135,37 @@ class Sphero(object):
             response_timeout_in_seconds=response_timeout_in_seconds)
 
 
+    async def get_rgb_led(
+            self,
+            reset_inactivity_timeout=True,
+            response_timeout_in_seconds=None):
+        """Retrieves the user LED color in RGB.
+
+        The user LED color is the color that persisists across reboots.
+        This may or may not be the active RGB LED color.
+        The user LED color is set by calling set_rgb_led
+        with save_as_user_led_color=True.
+
+        Returns:
+            The user LED color as a list in the form
+            [red, green, blue].
+        """
+
+        sequence_number = self._get_and_increment_command_sequence_number()
+        get_rgb_led_command = sphero.commands.create_get_rgb_led_command(
+            sequence_number,
+            wait_for_response=True, # must wait for the response to get the result.
+            reset_inactivity_timeout=reset_inactivity_timeout)
+
+        response_packet = await self._send_command(
+            get_rgb_led_command,
+            sequence_number=sequence_number,
+            wait_for_response=True,
+            response_timeout_in_seconds=response_timeout_in_seconds)
+
+        return response_packet.get_data()
+
+
     async def roll(
             self,
             speed,
