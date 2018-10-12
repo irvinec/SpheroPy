@@ -6,6 +6,7 @@ _DEVICE_ID_CORE = 0x00
 _DEVICE_ID_SPHERO = 0x02
 
 _COMMAND_ID_PING = 0x01
+_COMMAND_ID_CONFIGURE_COLLISION_DETECTION = 0x12
 _COMMAND_ID_SET_RGB_LED = 0x20
 _COMMAND_ID_GET_RGB_LED = 0x22
 _COMMAND_ID_ROLL = 0x30
@@ -22,6 +23,32 @@ def create_ping_command(
         command_id=_COMMAND_ID_PING,
         sequence_number=sequence_number,
         data=[],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
+
+
+def create_configure_collision_detection_command(
+        turn_on_collision_detection,
+        x_t,
+        x_speed,
+        y_t,
+        y_speed,
+        collision_dead_time,
+        sequence_number=0x00,
+        wait_for_response=True,
+        reset_inactivity_timeout=True):
+    """
+    """
+
+    return sphero.packets.ClientCommandPacket(
+        device_id=_DEVICE_ID_SPHERO,
+        command_id=_COMMAND_ID_CONFIGURE_COLLISION_DETECTION,
+        sequence_number=sequence_number,
+        data=[
+            0x01 if turn_on_collision_detection else 0x00,
+            x_t, x_speed,
+            y_t, y_speed,
+            collision_dead_time],
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
 

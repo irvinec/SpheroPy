@@ -21,6 +21,8 @@ class Sphero(object):
     """
 
     def __init__(self, bluetooth_interface, default_response_timeout_in_seconds=0.5):
+        self.on_collision = []
+
         self._bluetooth_interface = bluetooth_interface
         self._default_response_timeout_in_seconds = default_response_timeout_in_seconds
         self._command_sequence_number = 0x00
@@ -31,9 +33,6 @@ class Sphero(object):
         self._receive_thread = threading.Thread(target=self._receive_thread_run)
         self._receive_thread.daemon = True
         self._receive_thread.start()
-
-        # declare private event listeners
-        self._on_ping_response = None
 
 
     def __del__(self):
@@ -71,6 +70,35 @@ class Sphero(object):
         # so no need tp return anything.
         await self._send_command(
             ping_command,
+            sequence_number=sequence_number,
+            wait_for_response=wait_for_response,
+            response_timeout_in_seconds=response_timeout_in_seconds)
+
+
+    async def configure_collision_detection(
+            self,
+            turn_on_collision_detection,
+            x_t, x_speed,
+            y_t, y_speed,
+            collision_dead_time,
+            wait_for_response=True,
+            reset_inactivity_timeout=True,
+            response_timeout_in_seconds=None):
+        """
+        """
+
+        sequence_number = self._get_and_increment_command_sequence_number()
+        command = sphero.commands.create_configure_collision_detection_command(
+            turn_on_collision_detection=turn_on_collision_detection,
+            x_t=x_t, x_speed=x_speed,
+            y_t=y_t, y_speed=y_speed,
+            collision_dead_time=collision_dead_time,
+            sequence_number=sequence_number,
+            wait_for_response=wait_for_response,
+            reset_inactivity_timeout=reset_inactivity_timeout)
+
+        await self._send_command(
+            command,
             sequence_number=sequence_number,
             wait_for_response=wait_for_response,
             response_timeout_in_seconds=response_timeout_in_seconds)
@@ -288,7 +316,15 @@ class Sphero(object):
                 continue
 
             if response_packet.is_async():
-                pass # TODO: implement logic from here down
+                if response_packet.get_id_code() is sphero.packets._ID_CODE_COLLISION_DETECTED:
+                    collision_data = CollisionData(response_packet.get_data())
+                    for func in self.on_collision:
+                        # schedule the callback on its own thread.
+                        # TODO: there is probably a more asyncio way of doing this, but do we care?
+                        # maybe we can run the function on the main thread's event loop?
+                        callback_thread = threading.Thread(target=func, args=[collision_data])
+                        callback_thread.daemon = True
+                        callback_thread.start()
             else:
                 # for ACK/sync responses we only need to call the registered callback.
                 sequence_number = response_packet.get_sequence_number()
@@ -308,3 +344,77 @@ class Sphero(object):
             self._command_sequence_number = 0x00
 
         return result
+
+class CollisionData(object):
+    """
+    """
+
+    def __init__(self, data):
+        if len(data) is not 0x10:
+            raise ValueError(
+                "data is not 16 bytes long. Actual length: {}".format(len(data)))
+
+        self._x_impact = data[0] << 8 | data[1] & 0xFFFF
+        self._y_impact = data[2] << 8 | data[3] & 0xFFFF
+        self._z_impact = data[4] << 8 | data[5] & 0xFFFF
+        self._axis = data[6]
+        self._x_magnitude = data[7] << 8 | data[8] & 0xFFFF
+        self._y_magnitude = data[9] << 8 | data[10] & 0xFFFF
+        self._speed = data[11]
+        self._timestamp = data[12] << 24 | data[13] << 16 | data[14] << 8 | data[15] & 0xFFFFFFFF
+
+
+    def get_x_impact(self):
+        """
+        """
+
+        return self._x_impact
+
+
+    def get_y_impact(self):
+        """
+        """
+
+        return self._y_impact
+
+
+    def get_z_impact(self):
+        """
+        """
+
+        return self._z_impact
+
+
+    def get_axis(self):
+        """
+        """
+
+        return self._axis
+
+
+    def get_x_magnitude(self):
+        """
+        """
+
+        return self._x_magnitude
+
+
+    def get_y_magnitude(self):
+        """
+        """
+
+        return self._y_magnitude
+
+
+    def get_speed(self):
+        """
+        """
+
+        return self._speed
+
+
+    def get_timestamp(self):
+        """
+        """
+
+        return self._timestamp
