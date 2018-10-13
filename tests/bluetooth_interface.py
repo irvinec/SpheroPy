@@ -1,4 +1,5 @@
-# bluetooth_interface.py
+"""
+"""
 
 import bluetooth # pybluez
 
@@ -13,8 +14,10 @@ class BluetoothInterface(object):
         self._target_address = target_address
         self._sock = None
 
+
     def __del__(self):
         self.close()
+
 
     def connect(self):
         """
@@ -42,17 +45,20 @@ class BluetoothInterface(object):
         self._sock = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
         self._sock.connect((self._target_address, self._port))
 
+
     def send(self, data):
         """
         """
 
         self._sock.send(data)
 
+
     def recv(self, num_bytes):
         """
         """
 
         return self._sock.recv(num_bytes)
+
 
     def close(self):
         """

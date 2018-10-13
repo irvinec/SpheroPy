@@ -1,7 +1,8 @@
 """
 """
 
-import asyncio, time
+import asyncio
+import time
 import sphero
 
 from bluetooth_interface import BluetoothInterface

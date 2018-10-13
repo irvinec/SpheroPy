@@ -5,17 +5,6 @@ Interact with Sphero devices.
 
 import threading
 
-import sphero.packets
-import sphero.commands
-
-__all__ = ['Sphero', 'CommandTimedOutError']
-
-class CommandTimedOutError(Exception):
-    """Exception thrown when a command times out."""
-
-    def __init__(self):
-        Exception.__init__(self)
-
 class Sphero(object):
     """The main Sphero class that is used for interacting with a Sphero device.
     """
@@ -61,7 +50,7 @@ class Sphero(object):
         """
 
         sequence_number = self._get_and_increment_command_sequence_number()
-        ping_command = sphero.commands.create_ping_command(
+        ping_command = _create_ping_command(
             sequence_number,
             wait_for_response,
             reset_inactivity_timeout)
@@ -88,7 +77,7 @@ class Sphero(object):
         """
 
         sequence_number = self._get_and_increment_command_sequence_number()
-        command = sphero.commands.create_configure_collision_detection_command(
+        command = _create_configure_collision_detection_command(
             turn_on_collision_detection=turn_on_collision_detection,
             x_t=x_t, x_speed=x_speed,
             y_t=y_t, y_speed=y_speed,
@@ -147,7 +136,7 @@ class Sphero(object):
         """
 
         sequence_number = self._get_and_increment_command_sequence_number()
-        set_rgb_led_command = sphero.commands.create_set_rgb_led_command(
+        set_rgb_led_command = _create_set_rgb_led_command(
             red,
             green,
             blue,
@@ -180,7 +169,7 @@ class Sphero(object):
         """
 
         sequence_number = self._get_and_increment_command_sequence_number()
-        get_rgb_led_command = sphero.commands.create_get_rgb_led_command(
+        get_rgb_led_command = _create_get_rgb_led_command(
             sequence_number,
             wait_for_response=True, # must wait for the response to get the result.
             reset_inactivity_timeout=reset_inactivity_timeout)
@@ -231,7 +220,7 @@ class Sphero(object):
         """
 
         sequence_number = self._get_and_increment_command_sequence_number()
-        roll_command = sphero.commands.create_roll_command(
+        roll_command = _create_roll_command(
             speed,
             heading_in_degrees,
             sequence_number=sequence_number,
@@ -266,11 +255,9 @@ class Sphero(object):
                 response_event.set()
 
             # Register the response handler for this commands sequence number
-            if sequence_number in self._commands_waiting_for_response:
-                raise RuntimeError(
-                    "A response handler was already registered for the sequence number {}"
-                    .format(sequence_number)
-                )
+            assert sequence_number not in self._commands_waiting_for_response, \
+                ("A response handler was already registered for the sequence number {}"
+                 .format(sequence_number))
             self._commands_waiting_for_response[sequence_number] = handle_response
 
         self._bluetooth_interface.send(command.get_bytes())
@@ -294,17 +281,17 @@ class Sphero(object):
         while not self._class_destroy_event.is_set():
             receive_buffer.extend(self._bluetooth_interface.recv(1024))
             response_packet = None
-            while len(receive_buffer) >= sphero.packets.MIN_PACKET_LENGTH:
+            while len(receive_buffer) >= _MIN_PACKET_LENGTH:
                 try:
-                    response_packet = sphero.packets.SpheroResponsePacket(receive_buffer)
+                    response_packet = _ResponsePacket(receive_buffer)
                     # we have a valid response to handle
                     # break out of the inner while loop to handle
                     # the response
                     break
-                except sphero.packets.BufferNotLongEnoughError:
+                except BufferNotLongEnoughError:
                     # break out of inner loop so we can fetch more data
                     break
-                except sphero.packets.PacketParseError:
+                except PacketParseError:
                     # this is an error in the packet format
                     # remove one byte from the buffer and try again
                     receive_buffer.pop(0)
@@ -316,8 +303,8 @@ class Sphero(object):
                 continue
 
             if response_packet.is_async():
-                if response_packet.get_id_code() is sphero.packets._ID_CODE_COLLISION_DETECTED:
-                    collision_data = CollisionData(response_packet.get_data())
+                if response_packet.get_id_code() is _ID_CODE_COLLISION_DETECTED:
+                    collision_data = _CollisionData(response_packet.get_data())
                     for func in self.on_collision:
                         # schedule the callback on its own thread.
                         # TODO: there is probably a more asyncio way of doing this, but do we care?
@@ -334,6 +321,7 @@ class Sphero(object):
             # remove the packet we just handled
             del receive_buffer[:response_packet.get_packet_length()]
 
+
     def _get_and_increment_command_sequence_number(self):
         result = self._command_sequence_number
         self._command_sequence_number += 1
@@ -345,7 +333,58 @@ class Sphero(object):
 
         return result
 
-class CollisionData(object):
+class SpheroError(Exception):
+    """
+    """
+
+    pass
+
+class CommandTimedOutError(SpheroError):
+    """Exception thrown when a command times out."""
+
+    def __init__(self, message="Command timeout reached."):
+        super(CommandTimedOutError, self).__init__(self, message)
+
+class PacketError(SpheroError):
+    """
+    """
+
+    def __init__(self, message="Error related to a packet occured."):
+        super(PacketError, self).__init__(self, message)
+
+
+class PacketParseError(PacketError):
+    """
+    """
+
+    def __init__(self, message="Error parsing a packet."):
+        super(PacketParseError, self).__init__(self, message)
+
+class BufferNotLongEnoughError(PacketParseError):
+    """
+    """
+
+    def __init__(
+            self,
+            expected_length,
+            actual_length,
+            message="Buffer not long enough for packet."):
+        super(BufferNotLongEnoughError, self).__init__(self, message)
+        self.expected_length = expected_length
+        self.actual_length = actual_length
+
+
+# Minimum length of a valid packet
+_MIN_PACKET_LENGTH = 6
+
+# TODO: where to put these
+_ID_CODE_POWER_NOTIFICATION = 0x01
+_ID_CODE_LEVEL_1_DIAGNOSTICS = 0x02
+_ID_CODE_COLLISION_DETECTED = 0x07
+# TODO: Fill the rest
+
+
+class _CollisionData(object):
     """
     """
 
@@ -354,14 +393,14 @@ class CollisionData(object):
             raise ValueError(
                 "data is not 16 bytes long. Actual length: {}".format(len(data)))
 
-        self._x_impact = data[0] << 8 | data[1] & 0xFFFF
-        self._y_impact = data[2] << 8 | data[3] & 0xFFFF
-        self._z_impact = data[4] << 8 | data[5] & 0xFFFF
+        self._x_impact = _pack_2_bytes(data[0], data[1])
+        self._y_impact = _pack_2_bytes(data[2], data[3])
+        self._z_impact = _pack_2_bytes(data[4], data[5])
         self._axis = data[6]
-        self._x_magnitude = data[7] << 8 | data[8] & 0xFFFF
-        self._y_magnitude = data[9] << 8 | data[10] & 0xFFFF
+        self._x_magnitude = _pack_2_bytes(data[7], data[8])
+        self._y_magnitude = _pack_2_bytes(data[9], data[10])
         self._speed = data[11]
-        self._timestamp = data[12] << 24 | data[13] << 16 | data[14] << 8 | data[15] & 0xFFFFFFFF
+        self._timestamp = _pack_4_bytes(data[12], data[13], data[14], data[15])
 
 
     def get_x_impact(self):
@@ -418,3 +457,382 @@ class CollisionData(object):
         """
 
         return self._timestamp
+
+
+_DEVICE_ID_CORE = 0x00
+
+_COMMAND_ID_PING = 0x01
+
+def _create_ping_command(
+        sequence_number=0x00,
+        wait_for_response=True,
+        reset_inactivity_timeout=True):
+    """
+    """
+
+    return _ClientCommandPacket(
+        device_id=_DEVICE_ID_CORE,
+        command_id=_COMMAND_ID_PING,
+        sequence_number=sequence_number,
+        data=[],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
+
+
+_DEVICE_ID_SPHERO = 0x02
+
+_COMMAND_ID_CONFIGURE_COLLISION_DETECTION = 0x12
+
+def _create_configure_collision_detection_command(
+        turn_on_collision_detection,
+        x_t,
+        x_speed,
+        y_t,
+        y_speed,
+        collision_dead_time,
+        sequence_number=0x00,
+        wait_for_response=True,
+        reset_inactivity_timeout=True):
+    """
+    """
+
+    return _ClientCommandPacket(
+        device_id=_DEVICE_ID_SPHERO,
+        command_id=_COMMAND_ID_CONFIGURE_COLLISION_DETECTION,
+        sequence_number=sequence_number,
+        data=[
+            0x01 if turn_on_collision_detection else 0x00,
+            x_t, x_speed,
+            y_t, y_speed,
+            collision_dead_time],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
+
+
+_COMMAND_ID_SET_RGB_LED = 0x20
+
+def _create_set_rgb_led_command(
+        red=0,
+        green=0,
+        blue=0,
+        save_as_user_led_color=False,
+        sequence_number=0x00,
+        wait_for_response=True,
+        reset_inactivity_timeout=True):
+    """
+    """
+
+    if red < 0 or red > 0xFF:
+        raise ValueError()
+
+    if green < 0 or green > 0xFF:
+        raise ValueError()
+
+    if blue < 0 or blue > 0xFF:
+        raise ValueError()
+
+    return _ClientCommandPacket(
+        device_id=_DEVICE_ID_SPHERO,
+        command_id=_COMMAND_ID_SET_RGB_LED,
+        sequence_number=sequence_number,
+        data=[red, green, blue, 1 if save_as_user_led_color else 0],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
+
+
+_COMMAND_ID_GET_RGB_LED = 0x22
+
+def _create_get_rgb_led_command(
+        sequence_number=0x00,
+        wait_for_response=True,
+        reset_inactivity_timeout=True):
+    """
+    """
+
+    return _ClientCommandPacket(
+        device_id=_DEVICE_ID_SPHERO,
+        command_id=_COMMAND_ID_GET_RGB_LED,
+        sequence_number=sequence_number,
+        data=[],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
+
+_COMMAND_ID_ROLL = 0x30
+
+def _create_roll_command(
+        speed,
+        heading_in_degrees,
+        sequence_number=0x00,
+        wait_for_response=True,
+        reset_inactivity_timeout=True):
+    """
+    """
+
+    if heading_in_degrees < 0 or heading_in_degrees > 359:
+        raise ValueError(
+            "heading_in_degrees must be in the range [0, 359]. heading was {}"
+            .format(heading_in_degrees))
+
+    return _ClientCommandPacket(
+        device_id=_DEVICE_ID_SPHERO,
+        command_id=_COMMAND_ID_ROLL,
+        sequence_number=sequence_number,
+        data=[
+            speed,
+            _get_msb_of_2_bytes(heading_in_degrees),
+            _get_lsb_of_2_bytes(heading_in_degrees),
+            speed,  # This is the STATE value that was originally used in CES firmware.
+        ],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
+
+
+def _compute_checksum(packet):
+    """Computes the checksum byte of a packet.
+
+    Packet must not contain a checksum already
+
+    Args:
+        packet (list): List of bytes for a packet.
+            packet must not contain a checksum
+            as the last element
+
+    Returns:
+        The computed checksum byte
+    """
+
+    # checksum is the sum of the bytes
+    # from device id to the end of the data
+    # mod (%) 256 and bit negated (~) (1's compliment)
+    # and (&) with 0xFF to make sure it is a byte.
+    return ~(sum(packet[2:]) % 0x100) & 0xFF
+
+
+class _ClientCommandPacket(object):
+    """Represents a command packet sent from the client to a Sphero.
+    """
+
+    _START_OF_PACKET_1 = 0xFF
+    _START_OF_PACKET_2_BASE = 0xFC
+    _START_OF_PACKET_2_ANSWER_MASK = 0x01
+    _START_OF_PACKET_2_RESET_INACTIVITY_TIMEOUT_MASK = 0x02
+
+    def __init__(
+            self,
+            device_id,
+            command_id,
+            sequence_number=0x00,
+            data=None,
+            wait_for_response=True,
+            reset_inactivity_timeout=True):
+
+        if data is None:
+            data = []
+
+        start_of_packet_2 = self._START_OF_PACKET_2_BASE
+        if wait_for_response:
+            start_of_packet_2 |= self._START_OF_PACKET_2_ANSWER_MASK
+
+        if reset_inactivity_timeout:
+            start_of_packet_2 |= self._START_OF_PACKET_2_RESET_INACTIVITY_TIMEOUT_MASK
+
+        self._packet = [
+            self._START_OF_PACKET_1,
+            start_of_packet_2,
+            device_id,
+            command_id,
+            sequence_number,
+            min(len(data) + 1, 0xFF),
+        ]
+
+        self._packet.extend(data)
+        self._packet.append(_compute_checksum(self._packet))
+
+
+    def get_bytes(self):
+        """Get the ClientCommandPacket as a bytes object.
+
+        Used to send the packet to the Sphero.
+
+        Returns:
+            The ClientCommandPacket as bytes.
+        """
+
+        return bytes(self._packet)
+
+    def get_sequence_number(self):
+        """
+        """
+
+        return self._packet[4]
+
+class _ResponsePacket(object):
+    """Represents a response packet from a Sphero to the client
+
+    Will try to parse buffer provided to constructor as a packet
+
+    Args:
+        buffer (list): the raw byte buffer to
+        try and parse as a packet
+
+    Raises:
+        PacketParseError if the first bytes
+        in buffer are not a valid packet
+    """
+
+    _START_OF_PACKET_1_INDEX = 0
+    _START_OF_PACKET_2_INDEX = 1
+
+    # async response value indexes
+    _ID_CODE_INDEX = 2
+    _DATA_LENGTH_MSB_INDEX = 3
+    _DATA_LENGTH_LSB_INDEX = 4
+
+    # simple response value indexes
+    _MESSAGE_RESPONSE_CODE_INDEX = 2
+    _SEQUENCE_NUMBER_INDEX = 3
+    _DATA_LENGTH_INDEX = 4
+
+    _DATA_START_INDEX = 5
+
+    # 1 becuase data length includes checksum which is always present
+    _MIN_DATA_LENGTH = 1
+
+    _START_OF_PACKET_2_SYNC = 0xFF
+    _START_OF_PACKET_2_ASYNC = 0xFE
+
+    def __init__(self, buffer):
+        assert len(buffer) >= _MIN_PACKET_LENGTH, "Buffer is less than the minimum packet length"
+
+        self._message_response_code = 0x00
+        self._sequence_number = 0x00
+        self._id_code = 0x00
+
+        self._start_of_packet_byte_1 = buffer[self._START_OF_PACKET_1_INDEX]
+        self._start_of_packet_byte_2 = buffer[self._START_OF_PACKET_2_INDEX]
+
+        self._is_async = self._start_of_packet_byte_2 is self._START_OF_PACKET_2_ASYNC
+        if self._is_async:
+            self._id_code = buffer[self._ID_CODE_INDEX]
+            self._data_length = _pack_2_bytes(
+                buffer[self._DATA_LENGTH_MSB_INDEX],
+                buffer[self._DATA_LENGTH_LSB_INDEX])
+        else:
+            self._message_response_code = buffer[self._MESSAGE_RESPONSE_CODE_INDEX]
+            self._sequence_number = buffer[self._SEQUENCE_NUMBER_INDEX]
+            self._data_length = buffer[self._DATA_LENGTH_INDEX]
+
+        if self._data_length < self._MIN_DATA_LENGTH:
+            raise PacketParseError("Found invalid data length (less than 1)")
+
+        if self._data_length + _MIN_PACKET_LENGTH - 1 > len(buffer):
+            raise BufferNotLongEnoughError(self._data_length + _MIN_PACKET_LENGTH - 1, len(buffer))
+
+        checksum_index = self._get_checksum_index()
+        self._data = buffer[self._DATA_START_INDEX:checksum_index]
+        self._checksum = buffer[checksum_index]
+
+        if not self._is_data_length_valid():
+            raise PacketParseError("Length of data does not match data length byte.")
+
+        if self._checksum is not _compute_checksum(buffer[:checksum_index]):
+            raise PacketParseError("Checksum is not correct")
+
+
+    def is_async(self):
+        """
+        """
+        return self._is_async
+
+
+    def get_data(self):
+        """
+        """
+        return self._data
+
+
+    def get_id_code(self):
+        """
+        """
+
+        return self._id_code
+
+
+    def get_message_response(self):
+        """
+        """
+
+        return self._message_response_code
+
+
+    def get_sequence_number(self):
+        """
+        """
+
+        return self._sequence_number
+
+
+    def get_packet_length(self):
+        """
+        """
+
+        return self._data_length + 5
+
+
+    def _get_checksum_index(self):
+        """
+        """
+
+        return self._data_length + 4
+
+
+    def _is_data_length_valid(self):
+        """
+        """
+
+        # data_length includes the length of data and the checksum
+        return len(self._data) is self._data_length - 1
+
+
+def _get_msb_of_2_bytes(value):
+    """
+    """
+
+    return value >> 8 & 0xFF
+
+
+def _get_lsb_of_2_bytes(value):
+    """
+    """
+
+    return value & 0xFF
+
+def _pack_2_bytes(msb, lsb):
+    """
+    """
+
+    assert msb <= 0xFF
+    assert lsb <= 0xFF
+
+    return msb << 8 | lsb
+
+def _pack_3_bytes(msb, byte1, lsb):
+    """
+    """
+
+    assert msb <= 0xFF
+    assert byte1 <= 0xFF
+    assert lsb <= 0xFF
+
+    return msb << 16 | byte1 << 8 | lsb
+
+def _pack_4_bytes(msb, byte1, byte2, lsb):
+    """
+    """
+
+    assert msb <= 0xFF
+    assert byte1 <= 0xFF
+    assert byte2 <= 0xFF
+    assert lsb <= 0xFF
+
+    return msb << 24 | byte1 << 16 | byte2 << 8 | lsb
