@@ -26,6 +26,16 @@ async def main():
         event_loop = asyncio.new_event_loop()
         event_loop.run_until_complete(my_sphero.roll(0, 0))
         event_loop.run_until_complete(my_sphero.set_rgb_led(red=0xFF))
+
+        print("Collision Data:")
+        print("X Impact: {}".format(collision_data.x_impact))
+        print("Y Impact: {}".format(collision_data.y_impact))
+        print("Z Impact: {}".format(collision_data.z_impact))
+        print("Axis: {}".format(collision_data.axis))
+        print("X Magnitude: {}".format(collision_data.x_magnitude))
+        print("Y Magnitude: {}".format(collision_data.y_magnitude))
+        print("Speed: {}".format(collision_data.speed))
+        print("Timestamp: {}".format(collision_data.timestamp))
         time.sleep(4)
 
     my_sphero.on_collision.append(handle_collision)

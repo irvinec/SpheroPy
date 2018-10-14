@@ -23,10 +23,8 @@ class Sphero(object):
         self._receive_thread.daemon = True
         self._receive_thread.start()
 
-
     def __del__(self):
         self._class_destroy_event.set()
-
 
     async def ping(
             self,
@@ -63,6 +61,26 @@ class Sphero(object):
             wait_for_response=wait_for_response,
             response_timeout_in_seconds=response_timeout_in_seconds)
 
+    async def get_version_info(
+            self,
+            reset_inactivity_timeout=True,
+            response_timeout_in_seconds=None):
+        """
+        """
+
+        sequence_number = self._get_and_increment_command_sequence_number()
+        get_version_command = _create_get_version_command(
+            sequence_number=sequence_number,
+            wait_for_response=True,
+            reset_inactivity_timeout=reset_inactivity_timeout)
+
+        response_packet = await self._send_command(
+            get_version_command,
+            sequence_number=sequence_number,
+            wait_for_response=True,
+            response_timeout_in_seconds=response_timeout_in_seconds)
+
+        return _VersionInfo(response_packet.data)
 
     async def configure_collision_detection(
             self,
@@ -91,7 +109,6 @@ class Sphero(object):
             sequence_number=sequence_number,
             wait_for_response=wait_for_response,
             response_timeout_in_seconds=response_timeout_in_seconds)
-
 
     async def set_rgb_led(
             self,
@@ -151,7 +168,6 @@ class Sphero(object):
             wait_for_response=wait_for_response,
             response_timeout_in_seconds=response_timeout_in_seconds)
 
-
     async def get_rgb_led(
             self,
             reset_inactivity_timeout=True,
@@ -180,8 +196,7 @@ class Sphero(object):
             wait_for_response=True,
             response_timeout_in_seconds=response_timeout_in_seconds)
 
-        return response_packet.get_data()
-
+        return response_packet.data
 
     async def roll(
             self,
@@ -233,7 +248,6 @@ class Sphero(object):
             wait_for_response=wait_for_response,
             response_timeout_in_seconds=response_timeout_in_seconds)
 
-
     async def _send_command(
             self,
             command,
@@ -260,7 +274,7 @@ class Sphero(object):
                  .format(sequence_number))
             self._commands_waiting_for_response[sequence_number] = handle_response
 
-        self._bluetooth_interface.send(command.get_bytes())
+        self._bluetooth_interface.send(command.bytes)
 
         # Wait for the response if necessary
         if wait_for_response:
@@ -274,7 +288,6 @@ class Sphero(object):
                 raise CommandTimedOutError()
 
         return response_packet
-
 
     def _receive_thread_run(self):
         receive_buffer = []
@@ -302,9 +315,9 @@ class Sphero(object):
             if response_packet is None:
                 continue
 
-            if response_packet.is_async():
-                if response_packet.get_id_code() is _ID_CODE_COLLISION_DETECTED:
-                    collision_data = _CollisionData(response_packet.get_data())
+            if response_packet.is_async:
+                if response_packet.id_code is _ID_CODE_COLLISION_DETECTED:
+                    collision_data = _CollisionData(response_packet.data)
                     for func in self.on_collision:
                         # schedule the callback on its own thread.
                         # TODO: there is probably a more asyncio way of doing this, but do we care?
@@ -314,13 +327,12 @@ class Sphero(object):
                         callback_thread.start()
             else:
                 # for ACK/sync responses we only need to call the registered callback.
-                sequence_number = response_packet.get_sequence_number()
+                sequence_number = response_packet.sequence_number
                 if sequence_number in self._commands_waiting_for_response:
                     self._commands_waiting_for_response[sequence_number](response_packet)
                     # NOTE: it is up to the callback/waiting function to remove the handler.
             # remove the packet we just handled
-            del receive_buffer[:response_packet.get_packet_length()]
-
+            del receive_buffer[:response_packet.packet_length]
 
     def _get_and_increment_command_sequence_number(self):
         result = self._command_sequence_number
@@ -336,29 +348,27 @@ class Sphero(object):
 class SpheroError(Exception):
     """
     """
-
     pass
 
 class CommandTimedOutError(SpheroError):
     """Exception thrown when a command times out."""
 
     def __init__(self, message="Command timeout reached."):
-        super(CommandTimedOutError, self).__init__(self, message)
+        super().__init__(message)
 
 class PacketError(SpheroError):
     """
     """
 
     def __init__(self, message="Error related to a packet occured."):
-        super(PacketError, self).__init__(self, message)
-
+        super().__init__(message)
 
 class PacketParseError(PacketError):
     """
     """
 
     def __init__(self, message="Error parsing a packet."):
-        super(PacketParseError, self).__init__(self, message)
+        super().__init__(message)
 
 class BufferNotLongEnoughError(PacketParseError):
     """
@@ -369,10 +379,9 @@ class BufferNotLongEnoughError(PacketParseError):
             expected_length,
             actual_length,
             message="Buffer not long enough for packet."):
-        super(BufferNotLongEnoughError, self).__init__(self, message)
+        super().__init__(message)
         self.expected_length = expected_length
         self.actual_length = actual_length
-
 
 # Minimum length of a valid packet
 _MIN_PACKET_LENGTH = 6
@@ -383,6 +392,91 @@ _ID_CODE_LEVEL_1_DIAGNOSTICS = 0x02
 _ID_CODE_COLLISION_DETECTED = 0x07
 # TODO: Fill the rest
 
+class _VersionInfo(object):
+    """
+    """
+
+    def __init__(self, data):
+        self._record_version = data[0] if data else None
+        self._model_number = data[1] if len(data) > 1 else None
+        self._hardware_version = data[2] if len(data) > 2 else None
+        self._main_sphero_app_version = data[3] if len(data) > 3 else None
+        self._main_sphero_app_revision = data[4] if len(data) > 4 else None
+        self._bootloader_version = data[5] if len(data) > 5 else None
+        self._orb_basic_version = data[6] if len(data) > 6 else None
+        self._macro_executive_version = data[7] if len(data) > 7 else None
+        self._firmware_api_major_revision = data[8] if len(data) > 8 else None
+        self._firmware_api_minor_revision = data[9] if len(data) > 9 else None
+
+    @property
+    def record_version(self):
+        """
+        """
+
+        return self._record_version
+
+    @property
+    def model_number(self):
+        """
+        """
+
+        return self._model_number
+
+    @property
+    def hardware_version(self):
+        """
+        """
+
+        return self._hardware_version
+
+    @property
+    def main_sphero_app_version(self):
+        """
+        """
+
+        return self._main_sphero_app_version
+
+    @property
+    def main_sphero_app_revision(self):
+        """
+        """
+
+        return self._main_sphero_app_revision
+
+    @property
+    def bootloader_version(self):
+        """
+        """
+
+        return self._bootloader_version
+
+    @property
+    def orb_basic_version(self):
+        """
+        """
+
+        return self._orb_basic_version
+
+    @property
+    def macro_executive_version(self):
+        """
+        """
+
+        return self._macro_executive_version
+
+    @property
+    def firmware_api_major_revision(self):
+        """
+        """
+
+        return self._firmware_api_major_revision
+
+    @property
+    def firmware_api_minor_revision(self):
+        """
+        """
+
+        return self._firmware_api_minor_revision
 
 class _CollisionData(object):
     """
@@ -402,62 +496,61 @@ class _CollisionData(object):
         self._speed = data[11]
         self._timestamp = _pack_4_bytes(data[12], data[13], data[14], data[15])
 
-
-    def get_x_impact(self):
+    @property
+    def x_impact(self):
         """
         """
 
         return self._x_impact
 
-
-    def get_y_impact(self):
+    @property
+    def y_impact(self):
         """
         """
 
         return self._y_impact
 
-
-    def get_z_impact(self):
+    @property
+    def z_impact(self):
         """
         """
 
         return self._z_impact
 
-
-    def get_axis(self):
+    @property
+    def axis(self):
         """
         """
 
         return self._axis
 
-
-    def get_x_magnitude(self):
+    @property
+    def x_magnitude(self):
         """
         """
 
         return self._x_magnitude
 
-
-    def get_y_magnitude(self):
+    @property
+    def y_magnitude(self):
         """
         """
 
         return self._y_magnitude
 
-
-    def get_speed(self):
+    @property
+    def speed(self):
         """
         """
 
         return self._speed
 
-
-    def get_timestamp(self):
+    @property
+    def timestamp(self):
         """
         """
 
         return self._timestamp
-
 
 _DEVICE_ID_CORE = 0x00
 
@@ -478,6 +571,22 @@ def _create_ping_command(
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
 
+_COMMAND_ID_GET_VERSION = 0x02
+
+def _create_get_version_command(
+        sequence_number=0x00,
+        wait_for_response=True,
+        reset_inactivity_timeout=True):
+    """
+    """
+
+    return _ClientCommandPacket(
+        device_id=_DEVICE_ID_CORE,
+        command_id=_COMMAND_ID_GET_VERSION,
+        sequence_number=sequence_number,
+        data=[],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
 
 _DEVICE_ID_SPHERO = 0x02
 
@@ -508,7 +617,6 @@ def _create_configure_collision_detection_command(
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
 
-
 _COMMAND_ID_SET_RGB_LED = 0x20
 
 def _create_set_rgb_led_command(
@@ -538,7 +646,6 @@ def _create_set_rgb_led_command(
         data=[red, green, blue, 1 if save_as_user_led_color else 0],
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
-
 
 _COMMAND_ID_GET_RGB_LED = 0x22
 
@@ -586,7 +693,6 @@ def _create_roll_command(
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
 
-
 def _compute_checksum(packet):
     """Computes the checksum byte of a packet.
 
@@ -606,7 +712,6 @@ def _compute_checksum(packet):
     # mod (%) 256 and bit negated (~) (1's compliment)
     # and (&) with 0xFF to make sure it is a byte.
     return ~(sum(packet[2:]) % 0x100) & 0xFF
-
 
 class _ClientCommandPacket(object):
     """Represents a command packet sent from the client to a Sphero.
@@ -648,8 +753,8 @@ class _ClientCommandPacket(object):
         self._packet.extend(data)
         self._packet.append(_compute_checksum(self._packet))
 
-
-    def get_bytes(self):
+    @property
+    def bytes(self):
         """Get the ClientCommandPacket as a bytes object.
 
         Used to send the packet to the Sphero.
@@ -660,12 +765,14 @@ class _ClientCommandPacket(object):
 
         return bytes(self._packet)
 
-    def get_sequence_number(self):
+    @property
+    def sequence_number(self):
         """
         """
 
         return self._packet[4]
 
+# TODO: use properties for data members
 class _ResponsePacket(object):
     """Represents a response packet from a Sphero to the client
 
@@ -728,64 +835,64 @@ class _ResponsePacket(object):
         if self._data_length + _MIN_PACKET_LENGTH - 1 > len(buffer):
             raise BufferNotLongEnoughError(self._data_length + _MIN_PACKET_LENGTH - 1, len(buffer))
 
-        checksum_index = self._get_checksum_index()
+        checksum_index = self._checksum_index
         self._data = buffer[self._DATA_START_INDEX:checksum_index]
         self._checksum = buffer[checksum_index]
 
-        if not self._is_data_length_valid():
+        if not self._is_data_length_valid:
             raise PacketParseError("Length of data does not match data length byte.")
 
         if self._checksum is not _compute_checksum(buffer[:checksum_index]):
             raise PacketParseError("Checksum is not correct")
 
-
+    @property
     def is_async(self):
         """
         """
         return self._is_async
 
-
-    def get_data(self):
+    @property
+    def data(self):
         """
         """
         return self._data
 
-
-    def get_id_code(self):
+    @property
+    def id_code(self):
         """
         """
 
         return self._id_code
 
-
-    def get_message_response(self):
+    @property
+    def message_response(self):
         """
         """
 
         return self._message_response_code
 
-
-    def get_sequence_number(self):
+    @property
+    def sequence_number(self):
         """
         """
 
         return self._sequence_number
 
-
-    def get_packet_length(self):
+    @property
+    def packet_length(self):
         """
         """
 
         return self._data_length + 5
 
-
-    def _get_checksum_index(self):
+    @property
+    def _checksum_index(self):
         """
         """
 
         return self._data_length + 4
 
-
+    @property
     def _is_data_length_valid(self):
         """
         """
