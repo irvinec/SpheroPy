@@ -772,7 +772,6 @@ class _ClientCommandPacket(object):
 
         return self._packet[4]
 
-# TODO: use properties for data members
 class _ResponsePacket(object):
     """Represents a response packet from a Sphero to the client
 
@@ -900,13 +899,11 @@ class _ResponsePacket(object):
         # data_length includes the length of data and the checksum
         return len(self._data) is self._data_length - 1
 
-
 def _get_msb_of_2_bytes(value):
     """
     """
 
     return value >> 8 & 0xFF
-
 
 def _get_lsb_of_2_bytes(value):
     """
