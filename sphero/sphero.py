@@ -1,4 +1,4 @@
-"""Sphero
+"""sphero
 
 Interact with Sphero devices.
 """
@@ -31,7 +31,7 @@ class Sphero(object):
             wait_for_response=True,
             reset_inactivity_timeout=True,
             response_timeout_in_seconds=None):
-        """Sends ping command to the Sphero
+        """Sends ping to the Sphero.
 
         The Ping command is used to verify both a solid data link with the client
         and that Sphero is awake and dispatching commands.
@@ -65,7 +65,22 @@ class Sphero(object):
             self,
             reset_inactivity_timeout=True,
             response_timeout_in_seconds=None):
-        """
+        """Get the version info for various software and hardware components of the Sphero.
+
+        The get version info command returns a whole slew of software and hardware information.
+        It’s useful if your Client Application requires a minimum version number
+        of some resource within the Sphero.
+
+        Args:
+            reset_inactivity_timeout (bool, True):
+                If True, will reset the inactivity timer on the Sphero.
+            response_timeout_in_seconds (float, None):
+                The amount of time to wait for a response.
+                If not specified or None, uses the default timeout
+                passed in the constructor of this Sphero object.
+
+        Returns:
+            A VersionInfo object that contains the version info for the Sphero.
         """
 
         sequence_number = self._get_and_increment_command_sequence_number()
@@ -80,7 +95,47 @@ class Sphero(object):
             wait_for_response=True,
             response_timeout_in_seconds=response_timeout_in_seconds)
 
-        return _VersionInfo(response_packet.data)
+        return VersionInfo(response_packet.data)
+
+    async def set_device_name(
+            self,
+            device_name,
+            wait_for_response=True,
+            reset_inactivity_timeout=True,
+            response_timeout_in_seconds=None):
+        """Sets the Sphero's internal name.
+
+        This formerly reprogrammed the Bluetooth module to advertise with a different name,
+        but this is no longer the case.
+        This assigned name is held internally and returned in get_bluetooth_info.
+        Names are clipped at 48 characters in length to support UTF-8 sequences.
+        You can send something longer but the extra will be discarded.
+        This field defaults to the Bluetooth advertising name.
+
+        Args:
+            device_name (string): The desired name of the device/Sphero.
+            wait_for_response (bool, True):
+                If True, will wait for a response from the Sphero
+            reset_inactivity_timeout (bool, True):
+                If True, will reset the inactivity timer on the Sphero.
+            response_timeout_in_seconds (float, None):
+                The amount of time to wait for a response.
+                If not specified or None, uses the default timeout
+                passed in the constructor of this Sphero object.
+        """
+
+        sequence_number = self._get_and_increment_command_sequence_number()
+        set_device_name_command = _create_set_device_name_command(
+            device_name=device_name,
+            sequence_number=sequence_number,
+            wait_for_response=wait_for_response,
+            reset_inactivity_timeout=reset_inactivity_timeout)
+
+        await self._send_command(
+            set_device_name_command,
+            sequence_number=sequence_number,
+            wait_for_response=wait_for_response,
+            response_timeout_in_seconds=response_timeout_in_seconds)
 
     async def configure_collision_detection(
             self,
@@ -248,6 +303,7 @@ class Sphero(object):
             wait_for_response=wait_for_response,
             response_timeout_in_seconds=response_timeout_in_seconds)
 
+    # TODO: consider removing some params and getting them from command instead.
     async def _send_command(
             self,
             command,
@@ -392,7 +448,7 @@ _ID_CODE_LEVEL_1_DIAGNOSTICS = 0x02
 _ID_CODE_COLLISION_DETECTED = 0x07
 # TODO: Fill the rest
 
-class _VersionInfo(object):
+class VersionInfo(object):
     """
     """
 
@@ -585,6 +641,24 @@ def _create_get_version_command(
         command_id=_COMMAND_ID_GET_VERSION,
         sequence_number=sequence_number,
         data=[],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
+
+_COMMAND_ID_SET_DEVICE_NAME = 0x10
+
+def _create_set_device_name_command(
+        device_name,
+        sequence_number=0x00,
+        wait_for_response=True,
+        reset_inactivity_timeout=True):
+    """
+    """
+
+    return _ClientCommandPacket(
+        device_id=_DEVICE_ID_CORE,
+        command_id=_COMMAND_ID_SET_DEVICE_NAME,
+        sequence_number=sequence_number,
+        data=list(device_name),
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
 
