@@ -710,7 +710,7 @@ def _create_set_device_name_command(
         device_id=_DEVICE_ID_CORE,
         command_id=_COMMAND_ID_SET_DEVICE_NAME,
         sequence_number=sequence_number,
-        data=list(device_name),
+        data=[ord(i) for i in device_name],
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
 
