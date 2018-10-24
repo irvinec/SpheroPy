@@ -137,6 +137,27 @@ class Sphero(object):
             wait_for_response=wait_for_response,
             response_timeout_in_seconds=response_timeout_in_seconds)
 
+    async def get_bluetooth_info(
+            self,
+            reset_inactivity_timeout=True,
+            response_timeout_in_seconds=None):
+        """
+        """
+
+        sequence_number = self._get_and_increment_command_sequence_number()
+        get_bluetooth_info_command = _create_get_bluetooth_info_command(
+            sequence_number=sequence_number,
+            wait_for_response=True,
+            reset_inactivity_timeout=reset_inactivity_timeout)
+
+        response_packet = await self._send_command(
+            get_bluetooth_info_command,
+            sequence_number=sequence_number,
+            wait_for_response=True,
+            response_timeout_in_seconds=response_timeout_in_seconds)
+
+        return BluetoothInfo(response_packet.data)
+
     async def configure_collision_detection(
             self,
             turn_on_collision_detection,
@@ -534,6 +555,37 @@ class VersionInfo(object):
 
         return self._firmware_api_minor_revision
 
+class BluetoothInfo(object):
+    """
+    """
+
+    def __init__(self, data):
+        self._name = ''.join(chr(i) for i in data[:16])
+        self._bluetooth_address = ''.join(chr(i) for i in data[16:28])
+        self._id_colors = ''.join(chr(i) for i in data[29:])
+
+    @property
+    def name(self):
+        """The ASCII name of the Sphero."""
+
+        return self._name
+
+    @property
+    def bluetooth_address(self):
+        """The bluetooth address as ASCII string."""
+
+        return self._bluetooth_address
+
+    @property
+    def id_colors(self):
+        """The id colors of the Sphero as ASCII characters.
+
+        These are the colors the Sphero will blink when it is not connected.
+        """
+
+        return self._id_colors
+
+
 class _CollisionData(object):
     """
     """
@@ -661,6 +713,24 @@ def _create_set_device_name_command(
         data=list(device_name),
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
+
+_COMMAND_ID_GET_BLUETOOTH_INFO = 0x11
+
+def _create_get_bluetooth_info_command(
+        sequence_number,
+        wait_for_response,
+        reset_inactivity_timeout):
+    """
+    """
+
+    return _ClientCommandPacket(
+        device_id=_DEVICE_ID_CORE,
+        command_id=_COMMAND_ID_GET_BLUETOOTH_INFO,
+        sequence_number=sequence_number,
+        data=[],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
+
 
 _DEVICE_ID_SPHERO = 0x02
 

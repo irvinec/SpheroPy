@@ -14,9 +14,6 @@ async def main():
 
     original_user_led_color = await my_sphero.get_rgb_led()
 
-    # Ping the sphero and wait for a response.
-    # Do this a few times to validate
-    # sequence_number handling.
     await my_sphero.set_rgb_led(red=0xFF, save_as_user_led_color=True)
     time.sleep(2)
     user_led_color = await my_sphero.get_rgb_led()
