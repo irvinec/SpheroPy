@@ -18,10 +18,12 @@ async def main():
     print("Name: {}".format(original_bluetooth_info.name))
     print("Bluetooth Address: {}".format(original_bluetooth_info.bluetooth_address))
     print("ID Colors: {}".format(original_bluetooth_info.id_colors))
+    print("")
 
     print("Trying to set device name to SwervySwerve.")
     await my_sphero.set_device_name("SwervySwerve")
     print("Completed set device name.")
+    print("")
 
     new_bluetooth_info = await my_sphero.get_bluetooth_info()
 

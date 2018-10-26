@@ -6,7 +6,7 @@ Interact with Sphero devices.
 import threading
 
 class Sphero(object):
-    """The main Sphero class that is used for interacting with a Sphero device.
+    """The main class that is used for interacting with a Sphero device.
     """
 
     def __init__(self, bluetooth_interface, default_response_timeout_in_seconds=0.5):
@@ -44,22 +44,19 @@ class Sphero(object):
             response_timeout_in_seconds (float, None):
                 The amount of time to wait for a response.
                 If not specified or None, uses the default timeout
-                passed in the constructor of this Sphero object.
+                passed in the constructor of this Sphero.
         """
 
-        sequence_number = self._get_and_increment_command_sequence_number()
-        ping_command = _create_ping_command(
-            sequence_number,
-            wait_for_response,
-            reset_inactivity_timeout)
+        command = _create_ping_command(
+            self._get_and_increment_command_sequence_number(),
+            wait_for_response=wait_for_response,
+            reset_inactivity_timeout=reset_inactivity_timeout)
 
         # Ping has no data so don't in response,
         # so no need tp return anything.
         await self._send_command(
-            ping_command,
-            sequence_number=sequence_number,
-            wait_for_response=wait_for_response,
-            response_timeout_in_seconds=response_timeout_in_seconds)
+            command,
+            response_timeout_in_seconds)
 
     async def get_version_info(
             self,
@@ -77,23 +74,20 @@ class Sphero(object):
             response_timeout_in_seconds (float, None):
                 The amount of time to wait for a response.
                 If not specified or None, uses the default timeout
-                passed in the constructor of this Sphero object.
+                passed in the constructor of this Sphero.
 
         Returns:
-            A VersionInfo object that contains the version info for the Sphero.
+            A VersionInfo.
         """
 
-        sequence_number = self._get_and_increment_command_sequence_number()
-        get_version_command = _create_get_version_command(
-            sequence_number=sequence_number,
+        command = _create_get_version_command(
+            self._get_and_increment_command_sequence_number(),
             wait_for_response=True,
             reset_inactivity_timeout=reset_inactivity_timeout)
 
         response_packet = await self._send_command(
-            get_version_command,
-            sequence_number=sequence_number,
-            wait_for_response=True,
-            response_timeout_in_seconds=response_timeout_in_seconds)
+            command,
+            response_timeout_in_seconds)
 
         return VersionInfo(response_packet.data)
 
@@ -124,18 +118,15 @@ class Sphero(object):
                 passed in the constructor of this Sphero object.
         """
 
-        sequence_number = self._get_and_increment_command_sequence_number()
-        set_device_name_command = _create_set_device_name_command(
+        command = _create_set_device_name_command(
             device_name=device_name,
-            sequence_number=sequence_number,
+            sequence_number=self._get_and_increment_command_sequence_number(),
             wait_for_response=wait_for_response,
             reset_inactivity_timeout=reset_inactivity_timeout)
 
         await self._send_command(
-            set_device_name_command,
-            sequence_number=sequence_number,
-            wait_for_response=wait_for_response,
-            response_timeout_in_seconds=response_timeout_in_seconds)
+            command,
+            response_timeout_in_seconds)
 
     async def get_bluetooth_info(
             self,
@@ -144,19 +135,60 @@ class Sphero(object):
         """
         """
 
-        sequence_number = self._get_and_increment_command_sequence_number()
-        get_bluetooth_info_command = _create_get_bluetooth_info_command(
-            sequence_number=sequence_number,
+        command = _create_get_bluetooth_info_command(
+            sequence_number=self._get_and_increment_command_sequence_number(),
             wait_for_response=True,
             reset_inactivity_timeout=reset_inactivity_timeout)
 
         response_packet = await self._send_command(
-            get_bluetooth_info_command,
-            sequence_number=sequence_number,
-            wait_for_response=True,
-            response_timeout_in_seconds=response_timeout_in_seconds)
+            command,
+            response_timeout_in_seconds)
 
         return BluetoothInfo(response_packet.data)
+
+    async def set_auto_reconnect(
+            self,
+            should_enable_auto_reconnect,
+            time_in_seconds_after_boot,
+            wait_for_response=True,
+            reset_inactivity_timeout=True,
+            response_timeout_in_seconds=None):
+        """Sets the auto reconnect policy of the Sphero.
+
+        This configures the control of the Bluetooth module in its attempt
+        to automatically reconnect with the last mobile Apple device.
+        This is a courtesy behavior since the Apple Bluetooth stack doesn't
+        initiate automatic reconnection on its own.
+
+        Args:
+            should_enable_auto_reconnect (bool):
+                True to enable auto reconnect, False to disable it.
+            time_in_seconds_after_boot (int):
+                The number of seconds after power-up
+                in which to enable auto reconnect mode.
+                For example, if time_in_seconds_after_boot = 30,
+                then the module will attempt to reconnect
+                30 seconds after waking up.
+            wait_for_response (bool, True):
+                If True, will wait for a response from the Sphero
+            reset_inactivity_timeout (bool, True):
+                If True, will reset the inactivity timer on the Sphero.
+            response_timeout_in_seconds (float, None):
+                The amount of time to wait for a response.
+                If not specified or None, uses the default timeout
+                passed in the constructor of this Sphero.
+        """
+
+        command = _create_set_auto_reconnect_command(
+            should_enable_auto_reconnect=should_enable_auto_reconnect,
+            time_in_seconds_after_boot=time_in_seconds_after_boot,
+            sequence_number=self._get_and_increment_command_sequence_number(),
+            wait_for_response=wait_for_response,
+            reset_inactivity_timeout=reset_inactivity_timeout)
+
+        await self._send_command(
+            command,
+            response_timeout_in_seconds)
 
     async def configure_collision_detection(
             self,
@@ -170,21 +202,18 @@ class Sphero(object):
         """
         """
 
-        sequence_number = self._get_and_increment_command_sequence_number()
         command = _create_configure_collision_detection_command(
             turn_on_collision_detection=turn_on_collision_detection,
             x_t=x_t, x_speed=x_speed,
             y_t=y_t, y_speed=y_speed,
             collision_dead_time=collision_dead_time,
-            sequence_number=sequence_number,
+            sequence_number=self._get_and_increment_command_sequence_number(),
             wait_for_response=wait_for_response,
             reset_inactivity_timeout=reset_inactivity_timeout)
 
         await self._send_command(
             command,
-            sequence_number=sequence_number,
-            wait_for_response=wait_for_response,
-            response_timeout_in_seconds=response_timeout_in_seconds)
+            response_timeout_in_seconds)
 
     async def set_rgb_led(
             self,
@@ -228,20 +257,17 @@ class Sphero(object):
                 passed in the constructor of this Sphero object.
         """
 
-        sequence_number = self._get_and_increment_command_sequence_number()
-        set_rgb_led_command = _create_set_rgb_led_command(
+        command = _create_set_rgb_led_command(
             red,
             green,
             blue,
             save_as_user_led_color,
-            sequence_number,
-            wait_for_response,
-            reset_inactivity_timeout)
+            sequence_number=self._get_and_increment_command_sequence_number(),
+            wait_for_response=wait_for_response,
+            reset_inactivity_timeout=reset_inactivity_timeout)
 
         await self._send_command(
-            set_rgb_led_command,
-            sequence_number=sequence_number,
-            wait_for_response=wait_for_response,
+            command,
             response_timeout_in_seconds=response_timeout_in_seconds)
 
     async def get_rgb_led(
@@ -260,17 +286,14 @@ class Sphero(object):
             [red, green, blue].
         """
 
-        sequence_number = self._get_and_increment_command_sequence_number()
-        get_rgb_led_command = _create_get_rgb_led_command(
-            sequence_number,
+        command = _create_get_rgb_led_command(
+            sequence_number=self._get_and_increment_command_sequence_number(),
             wait_for_response=True, # must wait for the response to get the result.
             reset_inactivity_timeout=reset_inactivity_timeout)
 
         response_packet = await self._send_command(
-            get_rgb_led_command,
-            sequence_number=sequence_number,
-            wait_for_response=True,
-            response_timeout_in_seconds=response_timeout_in_seconds)
+            command,
+            response_timeout_in_seconds)
 
         return response_packet.data
 
@@ -310,33 +333,27 @@ class Sphero(object):
                 passed in the constructor of this Sphero object.
         """
 
-        sequence_number = self._get_and_increment_command_sequence_number()
         roll_command = _create_roll_command(
             speed,
             heading_in_degrees,
-            sequence_number=sequence_number,
+            sequence_number=self._get_and_increment_command_sequence_number(),
             wait_for_response=wait_for_response,
             reset_inactivity_timeout=reset_inactivity_timeout)
 
         await self._send_command(
             roll_command,
-            sequence_number=sequence_number,
-            wait_for_response=wait_for_response,
-            response_timeout_in_seconds=response_timeout_in_seconds)
+            response_timeout_in_seconds)
 
-    # TODO: consider removing some params and getting them from command instead.
     async def _send_command(
             self,
             command,
-            sequence_number,
-            wait_for_response=True,
-            response_timeout_in_seconds=None):
+            response_timeout_in_seconds):
         """
         """
 
         response_event = threading.Event()
         response_packet = None
-        if wait_for_response:
+        if command.wait_for_response:
             # define a generic response handler
             # TODO: might need the ability to pass a custom handler
             def handle_response(received_response_packet):
@@ -346,20 +363,20 @@ class Sphero(object):
                 response_event.set()
 
             # Register the response handler for this commands sequence number
-            assert sequence_number not in self._commands_waiting_for_response, \
+            assert command.sequence_number not in self._commands_waiting_for_response, \
                 ("A response handler was already registered for the sequence number {}"
-                 .format(sequence_number))
-            self._commands_waiting_for_response[sequence_number] = handle_response
+                 .format(command.sequence_number))
+            self._commands_waiting_for_response[command.sequence_number] = handle_response
 
         self._bluetooth_interface.send(command.bytes)
 
         # Wait for the response if necessary
-        if wait_for_response:
+        if command.wait_for_response:
             if response_timeout_in_seconds is None:
                 response_timeout_in_seconds = self._default_response_timeout_in_seconds
 
             timed_out = not response_event.wait(response_timeout_in_seconds)
-            del self._commands_waiting_for_response[sequence_number]
+            del self._commands_waiting_for_response[command.sequence_number]
             response_event.clear()
             if timed_out:
                 raise CommandTimedOutError()
@@ -731,6 +748,27 @@ def _create_get_bluetooth_info_command(
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
 
+_COMMAND_ID_SET_AUTO_RECONNECT = 0x12
+
+def _create_set_auto_reconnect_command(
+        should_enable_auto_reconnect,
+        time_in_seconds_after_boot,
+        sequence_number,
+        wait_for_response,
+        reset_inactivity_timeout):
+    """
+    """
+
+    return _ClientCommandPacket(
+        device_id=_DEVICE_ID_CORE,
+        command_id=_COMMAND_ID_SET_AUTO_RECONNECT,
+        sequence_number=sequence_number,
+        data=[
+            0x01 if should_enable_auto_reconnect else 0x00,
+            time_in_seconds_after_boot
+        ],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
 
 _DEVICE_ID_SPHERO = 0x02
 
@@ -878,6 +916,8 @@ class _ClientCommandPacket(object):
         if data is None:
             data = []
 
+        self._wait_for_response = wait_for_response
+
         start_of_packet_2 = self._START_OF_PACKET_2_BASE
         if wait_for_response:
             start_of_packet_2 |= self._START_OF_PACKET_2_ANSWER_MASK
@@ -915,6 +955,13 @@ class _ClientCommandPacket(object):
         """
 
         return self._packet[4]
+
+    @property
+    def wait_for_response(self):
+        """
+        """
+
+        return self._wait_for_response
 
 class _ResponsePacket(object):
     """Represents a response packet from a Sphero to the client
