@@ -115,7 +115,7 @@ class Sphero(object):
             response_timeout_in_seconds (float, None):
                 The amount of time to wait for a response.
                 If not specified or None, uses the default timeout
-                passed in the constructor of this Sphero object.
+                passed in the constructor of this Sphero.
         """
 
         command = _create_set_device_name_command(
@@ -132,7 +132,18 @@ class Sphero(object):
             self,
             reset_inactivity_timeout=True,
             response_timeout_in_seconds=None):
-        """
+        """Gets bluetooth related info from the Sphero.
+
+        Args:
+            reset_inactivity_timeout (bool, True):
+                If True, will reset the inactivity timer on the Sphero.
+            response_timeout_in_seconds (float, None):
+                The amount of time to wait for a response.
+                If not specified or None, uses the default timeout
+                passed in the constructor of this Sphero object.
+
+        Returns:
+            The BluetoothInfo.
         """
 
         command = _create_get_bluetooth_info_command(
@@ -149,7 +160,7 @@ class Sphero(object):
     async def set_auto_reconnect(
             self,
             should_enable_auto_reconnect,
-            time_in_seconds_after_boot,
+            seconds_after_boot,
             wait_for_response=True,
             reset_inactivity_timeout=True,
             response_timeout_in_seconds=None):
@@ -163,10 +174,10 @@ class Sphero(object):
         Args:
             should_enable_auto_reconnect (bool):
                 True to enable auto reconnect, False to disable it.
-            time_in_seconds_after_boot (int):
+            seconds_after_boot (int):
                 The number of seconds after power-up
                 in which to enable auto reconnect mode.
-                For example, if time_in_seconds_after_boot = 30,
+                For example, if seconds_after_boot = 30,
                 then the module will attempt to reconnect
                 30 seconds after waking up.
             wait_for_response (bool, True):
@@ -181,7 +192,7 @@ class Sphero(object):
 
         command = _create_set_auto_reconnect_command(
             should_enable_auto_reconnect=should_enable_auto_reconnect,
-            time_in_seconds_after_boot=time_in_seconds_after_boot,
+            seconds_after_boot=seconds_after_boot,
             sequence_number=self._get_and_increment_command_sequence_number(),
             wait_for_response=wait_for_response,
             reset_inactivity_timeout=reset_inactivity_timeout)
@@ -189,6 +200,35 @@ class Sphero(object):
         await self._send_command(
             command,
             response_timeout_in_seconds)
+
+    async def get_auto_reconnect(
+            self,
+            reset_inactivity_timeout=True,
+            response_timeout_in_seconds=None):
+        """Gets the auto reconnect settings for the Sphero.
+
+        Args:
+            reset_inactivity_timeout (bool, True):
+                If True, will reset the inactivity timer on the Sphero.
+            response_timeout_in_seconds (float, None):
+                The amount of time to wait for a response.
+                If not specified or None, uses the default timeout
+                passed in the constructor of this Sphero.
+
+        Returns:
+            The AutoReconnectInfo.
+        """
+
+        command = _create_get_auto_reconnect_command(
+            sequence_number=self._get_and_increment_command_sequence_number(),
+            wait_for_response=True,
+            reset_inactivity_timeout=reset_inactivity_timeout)
+
+        response_packet = await self._send_command(
+            command,
+            response_timeout_in_seconds=response_timeout_in_seconds)
+
+        return AutoReconnectInfo(response_packet.data)
 
     async def configure_collision_detection(
             self,
@@ -411,12 +451,12 @@ class Sphero(object):
 
             if response_packet.is_async:
                 if response_packet.id_code is _ID_CODE_COLLISION_DETECTED:
-                    collision_data = _CollisionData(response_packet.data)
+                    collision_info = CollisionInfo(response_packet.data)
                     for func in self.on_collision:
                         # schedule the callback on its own thread.
                         # TODO: there is probably a more asyncio way of doing this, but do we care?
                         # maybe we can run the function on the main thread's event loop?
-                        callback_thread = threading.Thread(target=func, args=[collision_data])
+                        callback_thread = threading.Thread(target=func, args=[collision_info])
                         callback_thread.daemon = True
                         callback_thread.start()
             else:
@@ -602,8 +642,45 @@ class BluetoothInfo(object):
 
         return self._id_colors
 
+class AutoReconnectInfo(object):
+    """
+    """
 
-class _CollisionData(object):
+    def __init__(self, data):
+        if len(data) is not 2:
+            raise ValueError(
+                "data is not 2 bytes long. Actual length: {}".format(len(data)))
+
+        self._is_enabled = data[0] is not 0
+        self._seconds_after_boot = data[1]
+
+    @property
+    def is_enabled(self):
+        """Is auto reconnect enabled.
+
+        Returns:
+            bool
+        """
+
+        return self._is_enabled
+
+    @property
+    def seconds_after_boot(self):
+        """Time in seconds after boot before auto reconnect should be enabled.
+
+        The number of seconds after power-up
+        in which to enable auto reconnect mode.
+        For example, if seconds_after_boot = 30,
+        then the module will attempt to reconnect
+        30 seconds after waking up.
+
+        Returns:
+            int
+        """
+
+        return self._seconds_after_boot
+
+class CollisionInfo(object):
     """
     """
 
@@ -752,7 +829,7 @@ _COMMAND_ID_SET_AUTO_RECONNECT = 0x12
 
 def _create_set_auto_reconnect_command(
         should_enable_auto_reconnect,
-        time_in_seconds_after_boot,
+        seconds_after_boot,
         sequence_number,
         wait_for_response,
         reset_inactivity_timeout):
@@ -765,8 +842,25 @@ def _create_set_auto_reconnect_command(
         sequence_number=sequence_number,
         data=[
             0x01 if should_enable_auto_reconnect else 0x00,
-            time_in_seconds_after_boot
+            seconds_after_boot
         ],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
+
+_COMMAND_ID_GET_AUTO_RECONNECT = 0x13
+
+def _create_get_auto_reconnect_command(
+        sequence_number,
+        wait_for_response,
+        reset_inactivity_timeout):
+    """
+    """
+
+    return _ClientCommandPacket(
+        device_id=_DEVICE_ID_CORE,
+        command_id=_COMMAND_ID_GET_AUTO_RECONNECT,
+        sequence_number=sequence_number,
+        data=None,
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
 
