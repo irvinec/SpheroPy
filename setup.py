@@ -1,12 +1,12 @@
 from distutils.core import setup
 
 setup(
-    name='Sphero.py',
+    name='SpheroPy',
     version='0.0.1',
     author='Casey Irvine',
     author_email='',
-    packages=['sphero'],
-    url='http://pypi.python.org/pypi/sphero/',
+    packages=['spheropy'],
+    url='http://pypi.python.org/pypi/spheropy/',
     license='LICENSE',
     description='',
     long_description=open('README.md').read(),

@@ -2,15 +2,14 @@
 """
 
 import asyncio
-import time
-import sphero
+import spheropy
 
 from bluetooth_interface import BluetoothInterface
 
 async def main():
     socket = BluetoothInterface()
     socket.connect()
-    my_sphero = sphero.Sphero(socket)
+    my_sphero = spheropy.Sphero(socket)
 
     original_auto_reconnect_setting = await my_sphero.get_auto_reconnect()
 

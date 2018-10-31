@@ -2,14 +2,14 @@
 """
 
 import asyncio
-import sphero
+import spheropy
 
 from bluetooth_interface import BluetoothInterface
 
 async def main():
     socket = BluetoothInterface()
     socket.connect()
-    my_sphero = sphero.Sphero(socket)
+    my_sphero = spheropy.Sphero(socket)
 
     # Ping the sphero and wait for a response.
     # Do this a few times to validate

@@ -3,14 +3,14 @@
 
 import asyncio
 import time
-import sphero
+import spheropy
 
 from bluetooth_interface import BluetoothInterface
 
 async def main():
     socket = BluetoothInterface()
     socket.connect()
-    my_sphero = sphero.Sphero(socket)
+    my_sphero = spheropy.Sphero(socket)
 
     await my_sphero.roll(127, 0)
     time.sleep(0.5)

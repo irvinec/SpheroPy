@@ -2,14 +2,14 @@
 """
 
 import asyncio
-import sphero
+import spheropy
 
 from bluetooth_interface import BluetoothInterface
 
 async def main():
     socket = BluetoothInterface()
     socket.connect()
-    my_sphero = sphero.Sphero(socket)
+    my_sphero = spheropy.Sphero(socket)
 
     version_info = await my_sphero.get_version_info()
 
