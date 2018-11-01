@@ -32,7 +32,7 @@ class Sphero(object):
             wait_for_response=True,
             reset_inactivity_timeout=True,
             response_timeout_in_seconds=None):
-        """Sends ping to the Sphero.
+        """Sends a ping to the Sphero.
 
         The Ping command is used to verify both a solid data link with the client
         and that Sphero is awake and dispatching commands.
@@ -78,7 +78,18 @@ class Sphero(object):
                 passed in the constructor of this Sphero.
 
         Returns:
-            A VersionInfo.
+            VersionInfo namedtuple.
+
+            record_version (int):
+            model_number (int):
+            hardware_version (int):
+            main_sphero_app_version (int):
+            main_sphero_app_revision (int):
+            bootloader_version (int):
+            orb_basic_version (int):
+            macro_executive_version (int):
+            firmware_api_major_revision (int):
+            firmware_api_minor_revisio (int):
         """
 
         command = _create_get_version_command(
@@ -90,7 +101,7 @@ class Sphero(object):
             command,
             response_timeout_in_seconds)
 
-        return VersionInfo(response_packet.data)
+        return _parse_version_info(response_packet.data)
 
     async def set_device_name(
             self,
@@ -144,7 +155,11 @@ class Sphero(object):
                 passed in the constructor of this Sphero object.
 
         Returns:
-            The BluetoothInfo.
+            BluetoothInfo namedtuple.
+
+            name (str):
+            bluetooth_address (str):
+            id_colors (str):
         """
 
         command = _create_get_bluetooth_info_command(
@@ -156,7 +171,7 @@ class Sphero(object):
             command,
             response_timeout_in_seconds)
 
-        return BluetoothInfo(response_packet.data)
+        return _parse_bluetooth_info(response_packet.data)
 
     async def set_auto_reconnect(
             self,
@@ -217,7 +232,13 @@ class Sphero(object):
                 passed in the constructor of this Sphero.
 
         Returns:
-            The AutoReconnectInfo.
+            AutoReconnectInfo namedtuple.
+
+            record_version (int):
+            battery_state (int):
+            battery_voltage (int):
+            total_number_of_recharges (int):
+            seconds_awake_since_last_recharge (int):
         """
 
         command = _create_get_auto_reconnect_command(
@@ -229,7 +250,7 @@ class Sphero(object):
             command,
             response_timeout_in_seconds=response_timeout_in_seconds)
 
-        return AutoReconnectInfo(response_packet.data)
+        return _parse_auto_reconnect_info(response_packet.data)
 
     BATTERY_STATE_CHARGING = 0x01
     BATTERY_STATE_OK = 0x02
@@ -251,7 +272,7 @@ class Sphero(object):
                 passed in the constructor of this Sphero.
 
         Returns:
-            A PowerState named tuple.
+            PowerState namedtuple.
 
             record_version (int):
                 The record version code.
@@ -287,7 +308,7 @@ class Sphero(object):
             command,
             response_timeout_in_seconds=response_timeout_in_seconds)
 
-        return _parse_power_state_data(response_packet.data)
+        return _parse_power_state(response_packet.data)
 
     async def configure_collision_detection(
             self,
@@ -510,7 +531,7 @@ class Sphero(object):
 
             if response_packet.is_async:
                 if response_packet.id_code is _ID_CODE_COLLISION_DETECTED:
-                    collision_info = CollisionInfo(response_packet.data)
+                    collision_info = _parse_collision_info(response_packet.data)
                     for func in self.on_collision:
                         # schedule the callback on its own thread.
                         # TODO: there is probably a more asyncio way of doing this, but do we care?
@@ -587,160 +608,58 @@ _ID_CODE_LEVEL_1_DIAGNOSTICS = 0x02
 _ID_CODE_COLLISION_DETECTED = 0x07
 # TODO: Fill the rest
 
-# TODO: Use namedtuples for value classes instead. Create parse methods that return the named tuple
-class VersionInfo(object):
-    """
-    """
+#region Data Tuples and Parsers
+VersionInfo = namedtuple(
+    "VersionInfo",
+    ["record_version",
+     "model_number",
+     "hardware_version",
+     "main_sphero_app_version",
+     "main_sphero_app_revision",
+     "bootloader_version",
+     "orb_basic_version",
+     "macro_executive_version",
+     "firmware_api_major_revision",
+     "firmware_api_minor_revision"])
 
-    def __init__(self, data):
-        self._record_version = data[0] if data else None
-        self._model_number = data[1] if len(data) > 1 else None
-        self._hardware_version = data[2] if len(data) > 2 else None
-        self._main_sphero_app_version = data[3] if len(data) > 3 else None
-        self._main_sphero_app_revision = data[4] if len(data) > 4 else None
-        self._bootloader_version = data[5] if len(data) > 5 else None
-        self._orb_basic_version = data[6] if len(data) > 6 else None
-        self._macro_executive_version = data[7] if len(data) > 7 else None
-        self._firmware_api_major_revision = data[8] if len(data) > 8 else None
-        self._firmware_api_minor_revision = data[9] if len(data) > 9 else None
+def _parse_version_info(data):
+    return VersionInfo(
+        data[0] if data else None,
+        data[1] if len(data) > 1 else None,
+        data[2] if len(data) > 2 else None,
+        data[3] if len(data) > 3 else None,
+        data[4] if len(data) > 4 else None,
+        data[5] if len(data) > 5 else None,
+        data[6] if len(data) > 6 else None,
+        data[7] if len(data) > 7 else None,
+        data[8] if len(data) > 8 else None,
+        data[9] if len(data) > 9 else None)
 
-    @property
-    def record_version(self):
-        """
-        """
+BluetoothInfo = namedtuple(
+    "BluetoothInfo",
+    ["name",
+    "bluetooth_address",
+    "id_colors"])
 
-        return self._record_version
+def _parse_bluetooth_info(data):
+    return BluetoothInfo(
+        ''.join(chr(i) for i in data[:16]),
+        ''.join(chr(i) for i in data[16:28]),
+        ''.join(chr(i) for i in data[29:]))
 
-    @property
-    def model_number(self):
-        """
-        """
+AutoReconnectInfo = namedtuple(
+    "AutoReconnectInfo",
+    ["is_enabled",
+     "seconds_after_boot"])
 
-        return self._model_number
+def _parse_auto_reconnect_info(data):
+    if len(data) is not 2:
+        raise ValueError(
+            "data is not 2 bytes long. Actual length: {}".format(len(data)))
 
-    @property
-    def hardware_version(self):
-        """
-        """
-
-        return self._hardware_version
-
-    @property
-    def main_sphero_app_version(self):
-        """
-        """
-
-        return self._main_sphero_app_version
-
-    @property
-    def main_sphero_app_revision(self):
-        """
-        """
-
-        return self._main_sphero_app_revision
-
-    @property
-    def bootloader_version(self):
-        """
-        """
-
-        return self._bootloader_version
-
-    @property
-    def orb_basic_version(self):
-        """
-        """
-
-        return self._orb_basic_version
-
-    @property
-    def macro_executive_version(self):
-        """
-        """
-
-        return self._macro_executive_version
-
-    @property
-    def firmware_api_major_revision(self):
-        """
-        """
-
-        return self._firmware_api_major_revision
-
-    @property
-    def firmware_api_minor_revision(self):
-        """
-        """
-
-        return self._firmware_api_minor_revision
-
-class BluetoothInfo(object):
-    """
-    """
-
-    def __init__(self, data):
-        self._name = ''.join(chr(i) for i in data[:16])
-        self._bluetooth_address = ''.join(chr(i) for i in data[16:28])
-        self._id_colors = ''.join(chr(i) for i in data[29:])
-
-    @property
-    def name(self):
-        """The ASCII name of the Sphero."""
-
-        return self._name
-
-    @property
-    def bluetooth_address(self):
-        """The bluetooth address as ASCII string."""
-
-        return self._bluetooth_address
-
-    @property
-    def id_colors(self):
-        """The id colors of the Sphero as ASCII characters.
-
-        These are the colors the Sphero will blink when it is not connected.
-        """
-
-        return self._id_colors
-
-class AutoReconnectInfo(object):
-    """
-    """
-
-    def __init__(self, data):
-        if len(data) is not 2:
-            raise ValueError(
-                "data is not 2 bytes long. Actual length: {}".format(len(data)))
-
-        self._is_enabled = data[0] is not 0
-        self._seconds_after_boot = data[1]
-
-    @property
-    def is_enabled(self):
-        """Is auto reconnect enabled.
-
-        Returns:
-            bool
-        """
-
-        return self._is_enabled
-
-    @property
-    def seconds_after_boot(self):
-        """Time in seconds after boot before auto reconnect should be enabled.
-
-        The number of seconds after power-up
-        in which to enable auto reconnect mode.
-        For example, if seconds_after_boot = 30,
-        then the module will attempt to reconnect
-        30 seconds after waking up.
-
-        Returns:
-            int
-        """
-
-        return self._seconds_after_boot
+    return AutoReconnectInfo(
+        data[0] is not 0,
+        data[1])
 
 PowerState = namedtuple(
     "PowerState",
@@ -750,7 +669,7 @@ PowerState = namedtuple(
      "total_number_of_recharges",
      "seconds_awake_since_last_recharge"])
 
-def _parse_power_state_data(data):
+def _parse_power_state(data):
     """
     """
 
@@ -761,79 +680,32 @@ def _parse_power_state_data(data):
         _pack_2_bytes(data[4], data[5]),
         _pack_2_bytes(data[6], data[7]))
 
-class CollisionInfo(object):
-    """
-    """
+CollisionInfo = namedtuple(
+    "CollisionInfo",
+    ["x_impact",
+     "y_impact",
+     "z_impact",
+     "axis",
+     "x_magnitude",
+     "y_magnitude",
+     "speed",
+     "timestamp"])
 
-    def __init__(self, data):
-        if len(data) is not 0x10:
-            raise ValueError(
-                "data is not 16 bytes long. Actual length: {}".format(len(data)))
+def _parse_collision_info(data):
+    if len(data) is not 0x10:
+        raise ValueError(
+            "data is not 16 bytes long. Actual length: {}".format(len(data)))
 
-        self._x_impact = _pack_2_bytes(data[0], data[1])
-        self._y_impact = _pack_2_bytes(data[2], data[3])
-        self._z_impact = _pack_2_bytes(data[4], data[5])
-        self._axis = data[6]
-        self._x_magnitude = _pack_2_bytes(data[7], data[8])
-        self._y_magnitude = _pack_2_bytes(data[9], data[10])
-        self._speed = data[11]
-        self._timestamp = _pack_4_bytes(data[12], data[13], data[14], data[15])
-
-    @property
-    def x_impact(self):
-        """
-        """
-
-        return self._x_impact
-
-    @property
-    def y_impact(self):
-        """
-        """
-
-        return self._y_impact
-
-    @property
-    def z_impact(self):
-        """
-        """
-
-        return self._z_impact
-
-    @property
-    def axis(self):
-        """
-        """
-
-        return self._axis
-
-    @property
-    def x_magnitude(self):
-        """
-        """
-
-        return self._x_magnitude
-
-    @property
-    def y_magnitude(self):
-        """
-        """
-
-        return self._y_magnitude
-
-    @property
-    def speed(self):
-        """
-        """
-
-        return self._speed
-
-    @property
-    def timestamp(self):
-        """
-        """
-
-        return self._timestamp
+    return CollisionInfo(
+        _pack_2_bytes(data[0], data[1]),
+        _pack_2_bytes(data[2], data[3]),
+        _pack_2_bytes(data[4], data[5]),
+        data[6],
+        _pack_2_bytes(data[7], data[8]),
+        _pack_2_bytes(data[9], data[10]),
+        data[11],
+        _pack_4_bytes(data[12], data[13], data[14], data[15]))
+#endregion
 
 #region Command Factory Methods
 _DEVICE_ID_CORE = 0x00
@@ -1214,12 +1086,14 @@ class _ResponsePacket(object):
     def is_async(self):
         """
         """
+
         return self._is_async
 
     @property
     def data(self):
         """
         """
+
         return self._data
 
     @property
