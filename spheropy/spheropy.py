@@ -12,6 +12,7 @@ class Sphero(object):
 
     def __init__(self, bluetooth_interface, default_response_timeout_in_seconds=0.5):
         self.on_collision = []
+        self.on_power_state_change = []
 
         self._bluetooth_interface = bluetooth_interface
         self._default_response_timeout_in_seconds = default_response_timeout_in_seconds
@@ -310,6 +311,44 @@ class Sphero(object):
 
         return _parse_power_state(response_packet.data)
 
+    # TODO: rename
+    async def set_power_notification(
+            self,
+            should_enable,
+            wait_for_response=True,
+            reset_inactivity_timeout=True,
+            response_timeout_in_seconds=None):
+        """Enables/Disables receiving power notification from the Sphero.
+
+        Enables/Disables the Sphero to asynchronously notify the client
+        periodically with the power state or
+        immediately when the power manager detects a state change.
+        Timed notifications arrive every 10 seconds until they are explicitly disabled
+        or Sphero is unpaired.
+        This setting is volatile and therefore not retained across sleep cycles.
+
+        Args:
+            should_enable (bool):
+                If True, power notifications will be enabled.
+                If False, power notifications will be disabled.
+            reset_inactivity_timeout (bool, True):
+                If True, will reset the inactivity timer on the Sphero.
+            response_timeout_in_seconds (float, None):
+                The amount of time to wait for a response.
+                If not specified or None, uses the default timeout
+                passed in the constructor of this Sphero.
+        """
+
+        command = _create_set_power_notification_command(
+            should_enable,
+            sequence_number=self._get_and_increment_command_sequence_number(),
+            wait_for_response=wait_for_response,
+            reset_inactivity_timeout=reset_inactivity_timeout)
+
+        await self._send_command(
+            command,
+            response_timeout_in_seconds=response_timeout_in_seconds)
+
     async def configure_collision_detection(
             self,
             turn_on_collision_detection,
@@ -536,7 +575,14 @@ class Sphero(object):
                         # schedule the callback on its own thread.
                         # TODO: there is probably a more asyncio way of doing this, but do we care?
                         # maybe we can run the function on the main thread's event loop?
+                        # TODO: refactor kicking off callback in seperate thread to a function
                         callback_thread = threading.Thread(target=func, args=[collision_info])
+                        callback_thread.daemon = True
+                        callback_thread.start()
+                elif response_packet.id_code is _ID_CODE_POWER_NOTIFICATION:
+                    power_state = response_packet.data[0]
+                    for func in self.on_power_state_change:
+                        callback_thread = threading.Thread(target=func, args=[power_state])
                         callback_thread.daemon = True
                         callback_thread.start()
             else:
@@ -832,6 +878,24 @@ def _create_get_power_state_command(
         command_id=_COMMAND_ID_GET_POWER_STATE,
         sequence_number=sequence_number,
         data=None,
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
+
+_COMMAND_ID_SET_POWER_NOTIFICATION = 0x21
+
+def _create_set_power_notification_command(
+        should_enable,
+        sequence_number,
+        wait_for_response,
+        reset_inactivity_timeout):
+    """
+    """
+
+    return _ClientCommandPacket(
+        device_id=_DEVICE_ID_CORE,
+        command_id=_COMMAND_ID_SET_POWER_NOTIFICATION,
+        sequence_number=sequence_number,
+        data=[0x01 if should_enable else 0x00],
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
 
