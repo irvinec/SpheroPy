@@ -331,6 +331,8 @@ class Sphero(object):
             should_enable (bool):
                 If True, power notifications will be enabled.
                 If False, power notifications will be disabled.
+            wait_for_response (bool, True):
+                If True, will wait for a response from the Sphero
             reset_inactivity_timeout (bool, True):
                 If True, will reset the inactivity timer on the Sphero.
             response_timeout_in_seconds (float, None):
@@ -341,6 +343,49 @@ class Sphero(object):
 
         command = _create_set_power_notification_command(
             should_enable,
+            sequence_number=self._get_and_increment_command_sequence_number(),
+            wait_for_response=wait_for_response,
+            reset_inactivity_timeout=reset_inactivity_timeout)
+
+        await self._send_command(
+            command,
+            response_timeout_in_seconds=response_timeout_in_seconds)
+
+    async def set_heading(
+            self,
+            heading,
+            wait_for_response=True,
+            reset_inactivity_timeout=True,
+            response_timeout_in_seconds=None):
+        """Sets the heading of the Sphero.
+
+        This allows the client to adjust the orientation of the Sphero
+        by commanding a new reference heading in degrees,
+        which ranges from 0 to 359.
+        You will see the ball respond immediately to this command
+        if stabilization is enabled.
+
+        In firmware version 3.10 and later this also clears
+        the maximum value counters for the rate gyro,
+        effectively re-enabling the generation of an async message
+        alerting the client to this event.
+
+        Args:
+            heading (int):
+                The desired heading in degrees.
+                In range [0, 359].
+            wait_for_response (bool, True):
+                If True, will wait for a response from the Sphero
+            reset_inactivity_timeout (bool, True):
+                If True, will reset the inactivity timer on the Sphero.
+            response_timeout_in_seconds (float, None):
+                The amount of time to wait for a response.
+                If not specified or None, uses the default timeout
+                passed in the constructor of this Sphero.
+        """
+
+        command = _create_set_heading_command(
+            heading=heading,
             sequence_number=self._get_and_increment_command_sequence_number(),
             wait_for_response=wait_for_response,
             reset_inactivity_timeout=reset_inactivity_timeout)
@@ -901,6 +946,26 @@ def _create_set_power_notification_command(
 
 _DEVICE_ID_SPHERO = 0x02
 
+_COMMAND_ID_SET_HEADING = 0x01
+
+def _create_set_heading_command(
+        heading,
+        sequence_number=0x00,
+        wait_for_response=True,
+        reset_inactivity_timeout=True):
+    """
+    """
+    return _ClientCommandPacket(
+        device_id=_DEVICE_ID_SPHERO,
+        command_id=_COMMAND_ID_SET_HEADING,
+        sequence_number=sequence_number,
+        data=[
+            _get_byte_at_index(heading, 1),
+            _get_byte_at_index(heading, 0)
+        ],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
+
 _COMMAND_ID_CONFIGURE_COLLISION_DETECTION = 0x12
 
 def _create_configure_collision_detection_command(
@@ -1225,6 +1290,13 @@ def _compute_checksum(packet):
     # mod (%) 256 and bit negated (~) (1's compliment)
     # and (&) with 0xFF to make sure it is a byte.
     return ~(sum(packet[2:]) % 0x100) & 0xFF
+
+# TODO: refactor to only use this.
+def _get_byte_at_index(value, index):
+    """
+    """
+
+    return value >> index*8 & 0xFF
 
 def _get_msb_of_2_bytes(value):
     """
