@@ -6,6 +6,9 @@ Interact with Sphero devices.
 import threading
 from collections import namedtuple
 
+# TODO: Need more parameter validation on functions.
+# TODO: Cleanup optional parameters on helper functions.
+
 class Sphero(object):
     """The main class that is used for interacting with a Sphero device.
     """
@@ -90,7 +93,7 @@ class Sphero(object):
             orb_basic_version (int):
             macro_executive_version (int):
             firmware_api_major_revision (int):
-            firmware_api_minor_revisio (int):
+            firmware_api_minor_revision (int):
         """
 
         command = _create_get_version_command(
@@ -311,7 +314,8 @@ class Sphero(object):
 
         return _parse_power_state(response_packet.data)
 
-    # TODO: rename
+    # TODO: rename to something better if possible
+    # maybe enable_power_notifications
     async def set_power_notification(
             self,
             should_enable,
@@ -530,7 +534,7 @@ class Sphero(object):
             wait_for_response (bool, True):
                 If True, will wait for a response from the Sphero
             reset_inactivity_timeout (bool, True):
-            If True, will reset the inactivity timer on the Sphero.
+                If True, will reset the inactivity timer on the Sphero.
             response_timeout_in_seconds (float, None):
                 The amount of time to wait for a response.
                 If not specified or None, uses the default timeout
@@ -695,9 +699,8 @@ _MIN_PACKET_LENGTH = 6
 
 # TODO: where to put these
 _ID_CODE_POWER_NOTIFICATION = 0x01
-_ID_CODE_LEVEL_1_DIAGNOSTICS = 0x02
 _ID_CODE_COLLISION_DETECTED = 0x07
-# TODO: Fill the rest
+# TODO: Fill the rest as needed
 
 #region Data Tuples and Parsers
 VersionInfo = namedtuple(
@@ -744,6 +747,9 @@ AutoReconnectInfo = namedtuple(
      "seconds_after_boot"])
 
 def _parse_auto_reconnect_info(data):
+    """
+    """
+
     if len(data) is not 2:
         raise ValueError(
             "data is not 2 bytes long. Actual length: {}".format(len(data)))
@@ -767,9 +773,9 @@ def _parse_power_state(data):
     return PowerState(
         data[0],
         data[1],
-        _pack_2_bytes(data[2], data[3]),
-        _pack_2_bytes(data[4], data[5]),
-        _pack_2_bytes(data[6], data[7]))
+        _pack_bytes(data[2:4]),
+        _pack_bytes(data[4:6]),
+        _pack_bytes(data[6:8]))
 
 CollisionInfo = namedtuple(
     "CollisionInfo",
@@ -783,19 +789,22 @@ CollisionInfo = namedtuple(
      "timestamp"])
 
 def _parse_collision_info(data):
+    """
+    """
+
     if len(data) is not 0x10:
         raise ValueError(
             "data is not 16 bytes long. Actual length: {}".format(len(data)))
 
     return CollisionInfo(
-        _pack_2_bytes(data[0], data[1]),
-        _pack_2_bytes(data[2], data[3]),
-        _pack_2_bytes(data[4], data[5]),
+        _pack_bytes(data[0:2]),
+        _pack_bytes(data[2:4]),
+        _pack_bytes(data[4:6]),
         data[6],
-        _pack_2_bytes(data[7], data[8]),
-        _pack_2_bytes(data[9], data[10]),
+        _pack_bytes(data[7:9]),
+        _pack_bytes(data[9:11]),
         data[11],
-        _pack_4_bytes(data[12], data[13], data[14], data[15]))
+        _pack_bytes(data[12:16]))
 #endregion
 
 #region Command Factory Methods
@@ -804,9 +813,9 @@ _DEVICE_ID_CORE = 0x00
 _COMMAND_ID_PING = 0x01
 
 def _create_ping_command(
-        sequence_number=0x00,
-        wait_for_response=True,
-        reset_inactivity_timeout=True):
+        sequence_number,
+        wait_for_response,
+        reset_inactivity_timeout):
     """
     """
 
@@ -821,9 +830,9 @@ def _create_ping_command(
 _COMMAND_ID_GET_VERSION = 0x02
 
 def _create_get_version_command(
-        sequence_number=0x00,
-        wait_for_response=True,
-        reset_inactivity_timeout=True):
+        sequence_number,
+        wait_for_response,
+        reset_inactivity_timeout):
     """
     """
 
@@ -839,9 +848,9 @@ _COMMAND_ID_SET_DEVICE_NAME = 0x10
 
 def _create_set_device_name_command(
         device_name,
-        sequence_number=0x00,
-        wait_for_response=True,
-        reset_inactivity_timeout=True):
+        sequence_number,
+        wait_for_response,
+        reset_inactivity_timeout):
     """
     """
 
@@ -950,11 +959,12 @@ _COMMAND_ID_SET_HEADING = 0x01
 
 def _create_set_heading_command(
         heading,
-        sequence_number=0x00,
-        wait_for_response=True,
-        reset_inactivity_timeout=True):
+        sequence_number,
+        wait_for_response,
+        reset_inactivity_timeout):
     """
     """
+
     return _ClientCommandPacket(
         device_id=_DEVICE_ID_SPHERO,
         command_id=_COMMAND_ID_SET_HEADING,
@@ -975,9 +985,9 @@ def _create_configure_collision_detection_command(
         y_t,
         y_speed,
         collision_dead_time,
-        sequence_number=0x00,
-        wait_for_response=True,
-        reset_inactivity_timeout=True):
+        sequence_number,
+        wait_for_response,
+        reset_inactivity_timeout):
     """
     """
 
@@ -996,13 +1006,13 @@ def _create_configure_collision_detection_command(
 _COMMAND_ID_SET_RGB_LED = 0x20
 
 def _create_set_rgb_led_command(
-        red=0,
-        green=0,
-        blue=0,
-        save_as_user_led_color=False,
-        sequence_number=0x00,
-        wait_for_response=True,
-        reset_inactivity_timeout=True):
+        red,
+        green,
+        blue,
+        save_as_user_led_color,
+        sequence_number,
+        wait_for_response,
+        reset_inactivity_timeout):
     """
     """
 
@@ -1026,9 +1036,9 @@ def _create_set_rgb_led_command(
 _COMMAND_ID_GET_RGB_LED = 0x22
 
 def _create_get_rgb_led_command(
-        sequence_number=0x00,
-        wait_for_response=True,
-        reset_inactivity_timeout=True):
+        sequence_number,
+        wait_for_response,
+        reset_inactivity_timeout):
     """
     """
 
@@ -1045,9 +1055,9 @@ _COMMAND_ID_ROLL = 0x30
 def _create_roll_command(
         speed,
         heading_in_degrees,
-        sequence_number=0x00,
-        wait_for_response=True,
-        reset_inactivity_timeout=True):
+        sequence_number,
+        wait_for_response,
+        reset_inactivity_timeout):
     """
     """
 
@@ -1062,9 +1072,10 @@ def _create_roll_command(
         sequence_number=sequence_number,
         data=[
             speed,
-            _get_msb_of_2_bytes(heading_in_degrees),
-            _get_lsb_of_2_bytes(heading_in_degrees),
-            speed,  # This is the STATE value that was originally used in CES firmware.
+            _get_byte_at_index(heading_in_degrees, 2),
+            _get_byte_at_index(heading_in_degrees, 1),
+            _get_byte_at_index(heading_in_degrees, 0),
+            speed   # This is the STATE value that was originally used in CES firmware.
         ],
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
@@ -1187,9 +1198,9 @@ class _ResponsePacket(object):
         self._is_async = self._start_of_packet_byte_2 is self._START_OF_PACKET_2_ASYNC
         if self._is_async:
             self._id_code = buffer[self._ID_CODE_INDEX]
-            self._data_length = _pack_2_bytes(
+            self._data_length = _pack_bytes([
                 buffer[self._DATA_LENGTH_MSB_INDEX],
-                buffer[self._DATA_LENGTH_LSB_INDEX])
+                buffer[self._DATA_LENGTH_LSB_INDEX]])
         else:
             self._message_response_code = buffer[self._MESSAGE_RESPONSE_CODE_INDEX]
             self._sequence_number = buffer[self._SEQUENCE_NUMBER_INDEX]
@@ -1277,12 +1288,13 @@ def _compute_checksum(packet):
     Packet must not contain a checksum already
 
     Args:
-        packet (list): List of bytes for a packet.
+        packet (list):
+            List of bytes for a packet.
             packet must not contain a checksum
             as the last element
 
     Returns:
-        The computed checksum byte
+        The computed checksum byte.
     """
 
     # checksum is the sum of the bytes
@@ -1291,53 +1303,35 @@ def _compute_checksum(packet):
     # and (&) with 0xFF to make sure it is a byte.
     return ~(sum(packet[2:]) % 0x100) & 0xFF
 
-# TODO: refactor to only use this.
 def _get_byte_at_index(value, index):
     """
     """
 
     return value >> index*8 & 0xFF
 
-def _get_msb_of_2_bytes(value):
-    """
-    """
+def _pack_bytes(byte_list):
+    """Packs a list of bytes to be a single number.
 
-    return value >> 8 & 0xFF
+    The MSB is the leftmost byte (index 0).
+    The LSB is the rightmost byte (index -1 or len(byte_list) - 1).
+    Each value in byte_list is assumed to be a byte (range [0, 255]).
+    This assumption is not validated in this function.
 
-def _get_lsb_of_2_bytes(value):
-    """
-    """
+    Args:
+        byte_list (list):
 
-    return value & 0xFF
-
-def _pack_2_bytes(msb, lsb):
-    """
-    """
-
-    assert msb <= 0xFF
-    assert lsb <= 0xFF
-
-    return msb << 8 | lsb
-
-def _pack_3_bytes(msb, byte1, lsb):
-    """
+    Returns:
+        The number resulting from the packed bytes.
     """
 
-    assert msb <= 0xFF
-    assert byte1 <= 0xFF
-    assert lsb <= 0xFF
+    left_shift_amount = 0
+    value = 0
+    # iterate backwards and pack the bits from right to left
+    for byte_value in reversed(byte_list):
+        assert byte_value >= 0 and byte_value <= 255
+        value |= byte_value << left_shift_amount
+        left_shift_amount += 8
 
-    return msb << 16 | byte1 << 8 | lsb
-
-def _pack_4_bytes(msb, byte1, byte2, lsb):
-    """
-    """
-
-    assert msb <= 0xFF
-    assert byte1 <= 0xFF
-    assert byte2 <= 0xFF
-    assert lsb <= 0xFF
-
-    return msb << 24 | byte1 << 16 | byte2 << 8 | lsb
+    return value
 
 #endregion
