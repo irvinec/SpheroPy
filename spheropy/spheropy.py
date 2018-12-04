@@ -50,7 +50,6 @@ class Sphero(object):
                 If not specified or None, uses the default timeout
                 passed in the constructor of this Sphero.
         """
-
         command = _create_ping_command(
             self._get_and_increment_command_sequence_number(),
             wait_for_response=wait_for_response,
@@ -94,7 +93,6 @@ class Sphero(object):
             firmware_api_major_revision (int):
             firmware_api_minor_revision (int):
         """
-
         command = _create_get_version_command(
             self._get_and_increment_command_sequence_number(),
             wait_for_response=True,
@@ -132,7 +130,6 @@ class Sphero(object):
                 If not specified or None, uses the default timeout
                 passed in the constructor of this Sphero.
         """
-
         command = _create_set_device_name_command(
             device_name=device_name,
             sequence_number=self._get_and_increment_command_sequence_number(),
@@ -164,7 +161,6 @@ class Sphero(object):
             bluetooth_address (str):
             id_colors (str):
         """
-
         command = _create_get_bluetooth_info_command(
             sequence_number=self._get_and_increment_command_sequence_number(),
             wait_for_response=True,
@@ -208,7 +204,6 @@ class Sphero(object):
                 If not specified or None, uses the default timeout
                 passed in the constructor of this Sphero.
         """
-
         command = _create_set_auto_reconnect_command(
             should_enable_auto_reconnect=should_enable_auto_reconnect,
             seconds_after_boot=seconds_after_boot,
@@ -243,7 +238,6 @@ class Sphero(object):
             total_number_of_recharges (int):
             seconds_awake_since_last_recharge (int):
         """
-
         command = _create_get_auto_reconnect_command(
             sequence_number=self._get_and_increment_command_sequence_number(),
             wait_for_response=True,
@@ -301,7 +295,6 @@ class Sphero(object):
                 Seconds awake since last recharge.
                 Unsigned 16-bit value.
         """
-
         command = _create_get_power_state_command(
             sequence_number=self._get_and_increment_command_sequence_number(),
             wait_for_response=True,
@@ -343,7 +336,6 @@ class Sphero(object):
                 If not specified or None, uses the default timeout
                 passed in the constructor of this Sphero.
         """
-
         command = _create_set_power_notification_command(
             should_enable,
             sequence_number=self._get_and_increment_command_sequence_number(),
@@ -386,7 +378,6 @@ class Sphero(object):
                 If not specified or None, uses the default timeout
                 passed in the constructor of this Sphero.
         """
-
         command = _create_set_heading_command(
             heading=heading,
             sequence_number=self._get_and_increment_command_sequence_number(),
@@ -406,9 +397,32 @@ class Sphero(object):
             wait_for_response=True,
             reset_inactivity_timeout=True,
             response_timeout_in_seconds=None):
-        """
-        """
+        """Configure the Sphero's collision detection.
 
+        Sphero contains a powerful analysis function to filter
+        accelerometer data in order to detect collisions.
+        Because this is a great example of a high-level concept
+        that humans excel and – but robots do not – a number of 
+        parameters control the behavior.
+        When a collision is detected an asynchronous message
+        is generated to the client.
+
+        Args:
+            turn_on_collision_detection (bool):
+            x_t:
+            x_speed:
+            y_t:
+            y_speed:
+            collision_dead_time:
+            wait_for_response (bool, True):
+                If True, will wait for a response from the Sphero
+            reset_inactivity_timeout (bool, True):
+                If True, will reset the inactivity timer on the Sphero.
+            response_timeout_in_seconds (float, None):
+                The amount of time to wait for a response.
+                If not specified or None, uses the default timeout
+                passed in the constructor of this Sphero.
+        """
         command = _create_configure_collision_detection_command(
             turn_on_collision_detection=turn_on_collision_detection,
             x_t=x_t, x_speed=x_speed,
@@ -421,6 +435,49 @@ class Sphero(object):
         await self._send_command(
             command,
             response_timeout_in_seconds)
+
+    async def get_locator_info(
+            self,
+            reset_inactivity_timeout=True,
+            response_timeout_in_seconds=None):
+        """Gets the Sphero's locator info.
+
+        Sphero locator info includes:
+            current position (X,Y),
+            component velocities
+            and speed over ground
+
+        The position is a signed value in centimeters.
+        The component velocities are signed cm/sec.
+        The SOG is unsigned cm/sec.
+
+        Args:
+            reset_inactivity_timeout (bool, True):
+                If True, will reset the inactivity timer on the Sphero.
+            response_timeout_in_seconds (float, None):
+                The amount of time to wait for a response.
+                If not specified or None, uses the default timeout
+                passed in the constructor of this Sphero.
+
+        Returns:
+            A LocatorInfo namedtuple.
+                pos_x (int):
+                    X position in centimeters.
+                pos_y (int):
+                    Y position in centimeters.
+                vel_x (int):
+                    X component velocity in cm/sec.
+                vel_y (int):
+                    Y component velocity in cm/sec.
+                speed_over_ground (int):
+                    The speed over ground in unsigned cm/sec.
+        """
+        command = _create_read_locator_command(
+            sequence_number=self._get_and_increment_command_sequence_number(),
+            wait_for_response=True,
+            reset_inactivity_timeout=reset_inactivity_timeout)
+        response_packet = await self._send_command(command, response_timeout_in_seconds)
+        return _parse_locator_info(response_packet.data)
 
     async def set_rgb_led(
             self,
@@ -463,7 +520,6 @@ class Sphero(object):
                 If not specified or None, uses the default timeout
                 passed in the constructor of this Sphero object.
         """
-
         command = _create_set_rgb_led_command(
             red,
             green,
@@ -492,7 +548,6 @@ class Sphero(object):
             The user LED color as a list in the form
             [red, green, blue].
         """
-
         command = _create_get_rgb_led_command(
             sequence_number=self._get_and_increment_command_sequence_number(),
             wait_for_response=True, # must wait for the response to get the result.
@@ -539,8 +594,7 @@ class Sphero(object):
                 If not specified or None, uses the default timeout
                 passed in the constructor of this Sphero object.
         """
-
-        roll_command = _create_roll_command(
+        command = _create_roll_command(
             speed,
             heading_in_degrees,
             sequence_number=self._get_and_increment_command_sequence_number(),
@@ -548,7 +602,7 @@ class Sphero(object):
             reset_inactivity_timeout=reset_inactivity_timeout)
 
         await self._send_command(
-            roll_command,
+            command,
             response_timeout_in_seconds)
 
     async def _send_command(
@@ -735,6 +789,8 @@ BluetoothInfo = namedtuple(
     "id_colors"])
 
 def _parse_bluetooth_info(data):
+    """
+    """
     return BluetoothInfo(
         ''.join(chr(i) for i in data[:16]),
         ''.join(chr(i) for i in data[16:28]),
@@ -748,7 +804,6 @@ AutoReconnectInfo = namedtuple(
 def _parse_auto_reconnect_info(data):
     """
     """
-
     if len(data) is not 2:
         raise ValueError(
             "data is not 2 bytes long. Actual length: {}".format(len(data)))
@@ -768,13 +823,30 @@ PowerState = namedtuple(
 def _parse_power_state(data):
     """
     """
-
     return PowerState(
         data[0],
         data[1],
         _pack_bytes(data[2:4]),
         _pack_bytes(data[4:6]),
         _pack_bytes(data[6:8]))
+
+LocatorInfo = namedtuple(
+    "LocatorInfo",
+    ["pos_x",
+     "pos_y",
+     "vel_x",
+     "vel_y",
+     "speed_over_ground"])
+
+def _parse_locator_info(data):
+    """
+    """
+    return LocatorInfo(
+        _pack_bytes(data[0:2]),
+        _pack_bytes(data[2:4]),
+        _pack_bytes(data[4:6]),
+        _pack_bytes(data[6:8]),
+        _pack_bytes(data[8:10]))
 
 CollisionInfo = namedtuple(
     "CollisionInfo",
@@ -989,7 +1061,6 @@ def _create_configure_collision_detection_command(
         reset_inactivity_timeout):
     """
     """
-
     return _ClientCommandPacket(
         device_id=_DEVICE_ID_SPHERO,
         command_id=_COMMAND_ID_CONFIGURE_COLLISION_DETECTION,
@@ -999,6 +1070,22 @@ def _create_configure_collision_detection_command(
             x_t, x_speed,
             y_t, y_speed,
             collision_dead_time],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
+
+_COMMAND_ID_READ_LOCATOR = 0x15
+
+def _create_read_locator_command(
+        sequence_number,
+        wait_for_response,
+        reset_inactivity_timeout):
+    """
+    """
+    return _ClientCommandPacket(
+        device_id=_DEVICE_ID_SPHERO,
+        command_id=_COMMAND_ID_READ_LOCATOR,
+        sequence_number=sequence_number,
+        data=None,
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
 
@@ -1014,7 +1101,6 @@ def _create_set_rgb_led_command(
         reset_inactivity_timeout):
     """
     """
-
     if red < 0 or red > 0xFF:
         raise ValueError()
 
