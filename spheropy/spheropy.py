@@ -544,6 +544,14 @@ class Sphero(object):
         The user LED color is set by calling set_rgb_led
         with save_as_user_led_color=True.
 
+        Args:
+            reset_inactivity_timeout (bool, True):
+                If True, will reset the inactivity timer on the Sphero.
+            response_timeout_in_seconds (float, None):
+                The amount of time to wait for a response.
+                If not specified or None, uses the default timeout
+                passed in the constructor of this Sphero object.
+
         Returns:
             The user LED color as a list in the form
             [red, green, blue].
@@ -558,6 +566,37 @@ class Sphero(object):
             response_timeout_in_seconds)
 
         return response_packet.data
+
+    async def set_back_led(
+            self,
+            brightness,
+            wait_for_response=True,
+            reset_inactivity_timeout=True,
+            response_timeout_in_seconds=None):
+        """Sets the brightness for the back LED.
+
+        This allows you to control the brightness of the back LED.
+        The value does not persist across power cycles.
+
+        Args:
+            brightness (int):
+                The brightness of the back LED.
+            wait_for_response (bool, True):
+                If True, will wait for a response from the Sphero
+            reset_inactivity_timeout (bool, True):
+                If True, will reset the inactivity timer on the Sphero.
+            response_timeout_in_seconds (float, None):
+                The amount of time to wait for a response.
+                If not specified or None, uses the default timeout
+                passed in the constructor of this Sphero object.
+        """
+        command = _create_set_back_led_output_command(
+            brightness=brightness,
+            sequence_number=self._get_and_increment_command_sequence_number(),
+            wait_for_response=wait_for_response,
+            reset_inactivity_timeout=reset_inactivity_timeout)
+
+        await self._send_command(command, response_timeout_in_seconds)
 
     async def roll(
             self,
@@ -601,9 +640,7 @@ class Sphero(object):
             wait_for_response=wait_for_response,
             reset_inactivity_timeout=reset_inactivity_timeout)
 
-        await self._send_command(
-            command,
-            response_timeout_in_seconds)
+        await self._send_command(command, response_timeout_in_seconds)
 
     async def _send_command(
             self,
@@ -876,20 +913,20 @@ def _parse_collision_info(data):
         _pack_bytes(data[9:11]),
         data[11],
         _pack_bytes(data[12:16]))
+
 #endregion
 
 #region Command Factory Methods
+
 _DEVICE_ID_CORE = 0x00
 
 _COMMAND_ID_PING = 0x01
-
 def _create_ping_command(
         sequence_number,
         wait_for_response,
         reset_inactivity_timeout):
     """
     """
-
     return _ClientCommandPacket(
         device_id=_DEVICE_ID_CORE,
         command_id=_COMMAND_ID_PING,
@@ -899,14 +936,12 @@ def _create_ping_command(
         reset_inactivity_timeout=reset_inactivity_timeout)
 
 _COMMAND_ID_GET_VERSION = 0x02
-
 def _create_get_version_command(
         sequence_number,
         wait_for_response,
         reset_inactivity_timeout):
     """
     """
-
     return _ClientCommandPacket(
         device_id=_DEVICE_ID_CORE,
         command_id=_COMMAND_ID_GET_VERSION,
@@ -916,7 +951,6 @@ def _create_get_version_command(
         reset_inactivity_timeout=reset_inactivity_timeout)
 
 _COMMAND_ID_SET_DEVICE_NAME = 0x10
-
 def _create_set_device_name_command(
         device_name,
         sequence_number,
@@ -924,7 +958,6 @@ def _create_set_device_name_command(
         reset_inactivity_timeout):
     """
     """
-
     return _ClientCommandPacket(
         device_id=_DEVICE_ID_CORE,
         command_id=_COMMAND_ID_SET_DEVICE_NAME,
@@ -934,14 +967,12 @@ def _create_set_device_name_command(
         reset_inactivity_timeout=reset_inactivity_timeout)
 
 _COMMAND_ID_GET_BLUETOOTH_INFO = 0x11
-
 def _create_get_bluetooth_info_command(
         sequence_number,
         wait_for_response,
         reset_inactivity_timeout):
     """
     """
-
     return _ClientCommandPacket(
         device_id=_DEVICE_ID_CORE,
         command_id=_COMMAND_ID_GET_BLUETOOTH_INFO,
@@ -951,7 +982,6 @@ def _create_get_bluetooth_info_command(
         reset_inactivity_timeout=reset_inactivity_timeout)
 
 _COMMAND_ID_SET_AUTO_RECONNECT = 0x12
-
 def _create_set_auto_reconnect_command(
         should_enable_auto_reconnect,
         seconds_after_boot,
@@ -960,7 +990,6 @@ def _create_set_auto_reconnect_command(
         reset_inactivity_timeout):
     """
     """
-
     return _ClientCommandPacket(
         device_id=_DEVICE_ID_CORE,
         command_id=_COMMAND_ID_SET_AUTO_RECONNECT,
@@ -973,14 +1002,12 @@ def _create_set_auto_reconnect_command(
         reset_inactivity_timeout=reset_inactivity_timeout)
 
 _COMMAND_ID_GET_AUTO_RECONNECT = 0x13
-
 def _create_get_auto_reconnect_command(
         sequence_number,
         wait_for_response,
         reset_inactivity_timeout):
     """
     """
-
     return _ClientCommandPacket(
         device_id=_DEVICE_ID_CORE,
         command_id=_COMMAND_ID_GET_AUTO_RECONNECT,
@@ -990,14 +1017,12 @@ def _create_get_auto_reconnect_command(
         reset_inactivity_timeout=reset_inactivity_timeout)
 
 _COMMAND_ID_GET_POWER_STATE = 0x20
-
 def _create_get_power_state_command(
         sequence_number,
         wait_for_response,
         reset_inactivity_timeout):
     """
     """
-
     return _ClientCommandPacket(
         device_id=_DEVICE_ID_CORE,
         command_id=_COMMAND_ID_GET_POWER_STATE,
@@ -1007,7 +1032,6 @@ def _create_get_power_state_command(
         reset_inactivity_timeout=reset_inactivity_timeout)
 
 _COMMAND_ID_SET_POWER_NOTIFICATION = 0x21
-
 def _create_set_power_notification_command(
         should_enable,
         sequence_number,
@@ -1015,7 +1039,6 @@ def _create_set_power_notification_command(
         reset_inactivity_timeout):
     """
     """
-
     return _ClientCommandPacket(
         device_id=_DEVICE_ID_CORE,
         command_id=_COMMAND_ID_SET_POWER_NOTIFICATION,
@@ -1027,7 +1050,6 @@ def _create_set_power_notification_command(
 _DEVICE_ID_SPHERO = 0x02
 
 _COMMAND_ID_SET_HEADING = 0x01
-
 def _create_set_heading_command(
         heading,
         sequence_number,
@@ -1035,7 +1057,6 @@ def _create_set_heading_command(
         reset_inactivity_timeout):
     """
     """
-
     return _ClientCommandPacket(
         device_id=_DEVICE_ID_SPHERO,
         command_id=_COMMAND_ID_SET_HEADING,
@@ -1048,7 +1069,6 @@ def _create_set_heading_command(
         reset_inactivity_timeout=reset_inactivity_timeout)
 
 _COMMAND_ID_CONFIGURE_COLLISION_DETECTION = 0x12
-
 def _create_configure_collision_detection_command(
         turn_on_collision_detection,
         x_t,
@@ -1074,7 +1094,6 @@ def _create_configure_collision_detection_command(
         reset_inactivity_timeout=reset_inactivity_timeout)
 
 _COMMAND_ID_READ_LOCATOR = 0x15
-
 def _create_read_locator_command(
         sequence_number,
         wait_for_response,
@@ -1090,7 +1109,6 @@ def _create_read_locator_command(
         reset_inactivity_timeout=reset_inactivity_timeout)
 
 _COMMAND_ID_SET_RGB_LED = 0x20
-
 def _create_set_rgb_led_command(
         red,
         green,
@@ -1119,14 +1137,12 @@ def _create_set_rgb_led_command(
         reset_inactivity_timeout=reset_inactivity_timeout)
 
 _COMMAND_ID_GET_RGB_LED = 0x22
-
 def _create_get_rgb_led_command(
         sequence_number,
         wait_for_response,
         reset_inactivity_timeout):
     """
     """
-
     return _ClientCommandPacket(
         device_id=_DEVICE_ID_SPHERO,
         command_id=_COMMAND_ID_GET_RGB_LED,
@@ -1135,8 +1151,23 @@ def _create_get_rgb_led_command(
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
 
-_COMMAND_ID_ROLL = 0x30
+_COMMAND_ID_SET_BACK_LED_OUTPUT = 0x21
+def _create_set_back_led_output_command(
+        brightness,
+        sequence_number,
+        wait_for_response,
+        reset_inactivity_timeout):
+    """
+    """
+    return _ClientCommandPacket(
+        device_id=_DEVICE_ID_SPHERO,
+        command_id=_COMMAND_ID_SET_BACK_LED_OUTPUT,
+        sequence_number=sequence_number,
+        data=[brightness],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
 
+_COMMAND_ID_ROLL = 0x30
 def _create_roll_command(
         speed,
         heading_in_degrees,
@@ -1145,7 +1176,6 @@ def _create_roll_command(
         reset_inactivity_timeout):
     """
     """
-
     if heading_in_degrees < 0 or heading_in_degrees > 359:
         raise ValueError(
             "heading_in_degrees must be in the range [0, 359]. heading was {}"
@@ -1164,13 +1194,14 @@ def _create_roll_command(
         ],
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
+
 #endregion
 
 #region Private Package Classes
+
 class _ClientCommandPacket(object):
     """Represents a command packet sent from the client to a Sphero.
     """
-
     _START_OF_PACKET_1 = 0xFF
     _START_OF_PACKET_2_BASE = 0xFC
     _START_OF_PACKET_2_ANSWER_MASK = 0x01
@@ -1218,21 +1249,18 @@ class _ClientCommandPacket(object):
         Returns:
             The ClientCommandPacket as bytes.
         """
-
         return bytes(self._packet)
 
     @property
     def sequence_number(self):
         """
         """
-
         return self._packet[4]
 
     @property
     def wait_for_response(self):
         """
         """
-
         return self._wait_for_response
 
 class _ResponsePacket(object):
@@ -1248,7 +1276,6 @@ class _ResponsePacket(object):
         PacketParseError if the first bytes
         in buffer are not a valid packet
     """
-
     _START_OF_PACKET_1_INDEX = 0
     _START_OF_PACKET_2_INDEX = 1
 
@@ -1311,62 +1338,55 @@ class _ResponsePacket(object):
     def is_async(self):
         """
         """
-
         return self._is_async
 
     @property
     def data(self):
         """
         """
-
         return self._data
 
     @property
     def id_code(self):
         """
         """
-
         return self._id_code
 
     @property
     def message_response(self):
         """
         """
-
         return self._message_response_code
 
     @property
     def sequence_number(self):
         """
         """
-
         return self._sequence_number
 
     @property
     def packet_length(self):
         """
         """
-
         return self._data_length + 5
 
     @property
     def _checksum_index(self):
         """
         """
-
         return self._data_length + 4
 
     @property
     def _is_data_length_valid(self):
         """
         """
-
         # data_length includes the length of data and the checksum
         return len(self._data) is self._data_length - 1
 
 #endregion
 
 #region Private Utility Methods
+
 def _compute_checksum(packet):
     """Computes the checksum byte of a packet.
 
@@ -1381,7 +1401,6 @@ def _compute_checksum(packet):
     Returns:
         The computed checksum byte.
     """
-
     # checksum is the sum of the bytes
     # from device id to the end of the data
     # mod (%) 256 and bit negated (~) (1's compliment)
@@ -1391,7 +1410,6 @@ def _compute_checksum(packet):
 def _get_byte_at_index(value, index):
     """
     """
-
     return value >> index*8 & 0xFF
 
 def _pack_bytes(byte_list):
@@ -1408,7 +1426,6 @@ def _pack_bytes(byte_list):
     Returns:
         The number resulting from the packed bytes.
     """
-
     left_shift_amount = 0
     value = 0
     # iterate backwards and pack the bits from right to left
