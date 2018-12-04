@@ -7,7 +7,6 @@ import threading
 from collections import namedtuple
 
 # TODO: Need more parameter validation on functions.
-# TODO: Cleanup optional parameters on helper functions.
 
 class Sphero(object):
     """The main class that is used for interacting with a Sphero device.

@@ -32,6 +32,6 @@ async def main():
     # Don't reset the inactivity timeout
     await my_sphero.ping(wait_for_response=False, reset_inactivity_timeout=False)
 
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    main_loop = asyncio.get_event_loop()
+    main_loop.run_until_complete(main())
