@@ -436,6 +436,29 @@ class Sphero(object):
             command,
             response_timeout_in_seconds)
 
+    async def configure_locator(
+            self,
+            enable_auto_yaw_tare_correction=True,
+            pos_x=0,
+            pos_y=0,
+            yaw_tare=0,
+            wait_for_response=True,
+            reset_inactivity_timeout=True,
+            response_timeout_in_seconds=None):
+        """
+        """
+        command = _create_configure_locator_command(
+            enable_auto_yaw_tare_correction=enable_auto_yaw_tare_correction,
+            pos_x=pos_x, pos_y=pos_y,
+            yaw_tare=yaw_tare,
+            sequence_number=self._get_and_increment_command_sequence_number(),
+            wait_for_response=wait_for_response,
+            reset_inactivity_timeout=reset_inactivity_timeout)
+
+        await self._send_command(
+            command,
+            response_timeout_in_seconds)
+
     async def get_locator_info(
             self,
             reset_inactivity_timeout=True,
@@ -1090,6 +1113,33 @@ def _create_configure_collision_detection_command(
             x_t, x_speed,
             y_t, y_speed,
             collision_dead_time],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout)
+
+_COMMAND_ID_CONFIGURE_LOCATOR = 0x13
+def _create_configure_locator_command(
+        enable_auto_yaw_tare_correction,
+        pos_x,
+        pos_y,
+        yaw_tare,
+        sequence_number,
+        wait_for_response,
+        reset_inactivity_timeout):
+    """
+    """
+    return _ClientCommandPacket(
+        device_id=_DEVICE_ID_SPHERO,
+        command_id=_COMMAND_ID_CONFIGURE_LOCATOR,
+        sequence_number=sequence_number,
+        data=[
+            0x80 if enable_auto_yaw_tare_correction else 0,
+            _get_byte_at_index(pos_x, 0),
+            _get_byte_at_index(pos_x, 1),
+            _get_byte_at_index(pos_y, 0),
+            _get_byte_at_index(pos_y, 1),
+            _get_byte_at_index(yaw_tare, 0),
+            _get_byte_at_index(yaw_tare, 0)
+        ],
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
 
