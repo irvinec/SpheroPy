@@ -4,6 +4,7 @@ Interact with Sphero devices.
 """
 
 import threading
+import struct
 from collections import namedtuple
 
 # TODO: Need more parameter validation on functions.
@@ -902,11 +903,11 @@ def _parse_locator_info(data):
     """
     """
     return LocatorInfo(
-        _pack_bytes(data[0:2]),
-        _pack_bytes(data[2:4]),
-        _pack_bytes(data[4:6]),
-        _pack_bytes(data[6:8]),
-        _pack_bytes(data[8:10]))
+        struct.unpack('>h', bytes(data[0:2])),  # signed short
+        struct.unpack('>h', bytes(data[2:4])),  # signed short
+        struct.unpack('>h', bytes(data[4:6])),  # signed short
+        struct.unpack('>h', bytes(data[6:8])),  # signed short
+        struct.unpack('>H', bytes(data[8:10]))) # unsigned short
 
 CollisionInfo = namedtuple(
     "CollisionInfo",
