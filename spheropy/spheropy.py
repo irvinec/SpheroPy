@@ -929,9 +929,9 @@ def _parse_collision_info(data):
             "data is not 16 bytes long. Actual length: {}".format(len(data)))
 
     return CollisionInfo(
-        _pack_bytes(data[0:2]),
-        _pack_bytes(data[2:4]),
-        _pack_bytes(data[4:6]),
+        struct.unpack('>h', bytes(data[0:2])),  # signed short
+        struct.unpack('>h', bytes(data[2:4])),  # signed short
+        struct.unpack('>h', bytes(data[4:6])),  # signed short
         data[6],
         _pack_bytes(data[7:9]),
         _pack_bytes(data[9:11]),
@@ -1238,10 +1238,9 @@ def _create_roll_command(
         sequence_number=sequence_number,
         data=[
             speed,
-            _get_byte_at_index(heading_in_degrees, 2),
             _get_byte_at_index(heading_in_degrees, 1),
             _get_byte_at_index(heading_in_degrees, 0),
-            speed   # This is the STATE value that was originally used in CES firmware.
+            1 if speed > 0 else 0   # This is the STATE value that was originally used in CES firmware.
         ],
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
@@ -1463,6 +1462,7 @@ def _get_byte_at_index(value, index):
     """
     return value >> index*8 & 0xFF
 
+# TODO: replace with struct.unpack
 def _pack_bytes(byte_list):
     """Packs a list of bytes to be a single number.
 
