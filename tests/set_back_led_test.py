@@ -4,17 +4,16 @@
 import asyncio
 import time
 import spheropy
-
-from bluetooth_interface import BluetoothInterface
+from tests.test_utils import parse_args
 
 async def main():
-    socket = BluetoothInterface()
-    socket.connect()
-    my_sphero = spheropy.Sphero(socket)
+    script_args = parse_args()
+    sphero = spheropy.Sphero()
+    await sphero.connect(num_retry_attempts=3, use_ble=script_args.use_ble)
 
-    await my_sphero.set_back_led(255)
+    await sphero.set_back_led(255)
     time.sleep(2)
-    await my_sphero.set_back_led(0)
+    await sphero.set_back_led(0)
 
 if __name__ == "__main__":
     main_loop = asyncio.get_event_loop()

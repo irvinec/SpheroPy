@@ -3,34 +3,33 @@
 
 import asyncio
 import spheropy
-
-from bluetooth_interface import BluetoothInterface
+from tests.test_utils import parse_args
 
 async def main():
-    socket = BluetoothInterface()
-    socket.connect()
-    my_sphero = spheropy.Sphero(socket)
+    script_args = parse_args()
+    sphero = spheropy.Sphero()
+    await sphero.connect(num_retry_attempts=3, use_ble=script_args.use_ble)
 
     # Ping the sphero and wait for a response.
     # Do this a few times to validate
     # sequence_number handling.
-    await my_sphero.ping()
-    await my_sphero.ping()
-    await my_sphero.ping()
+    await sphero.ping()
+    await sphero.ping()
+    await sphero.ping()
 
     # Ping the Sphero a few times,
     # but don't wait until all have been started.
     await asyncio.gather(
-        my_sphero.ping(),
-        my_sphero.ping(),
-        my_sphero.ping()
+        sphero.ping(),
+        sphero.ping(),
+        sphero.ping()
     )
 
     # Ping the sphero but don't request/wait for a response
-    await my_sphero.ping(wait_for_response=False)
+    await sphero.ping(wait_for_response=False)
 
     # Don't reset the inactivity timeout
-    await my_sphero.ping(wait_for_response=False, reset_inactivity_timeout=False)
+    await sphero.ping(wait_for_response=False, reset_inactivity_timeout=False)
 
 if __name__ == "__main__":
     main_loop = asyncio.get_event_loop()

@@ -2,16 +2,15 @@
 """
 
 import asyncio
+from tests.test_utils import parse_args
 import spheropy
 
-from bluetooth_interface import BluetoothInterface
-
 async def main():
-    socket = BluetoothInterface()
-    socket.connect()
-    my_sphero = spheropy.Sphero(socket)
+    script_args = parse_args()
+    sphero = spheropy.Sphero()
+    await sphero.connect(num_retry_attempts=3, use_ble=script_args.use_ble)
 
-    version_info = await my_sphero.get_version_info()
+    version_info = await sphero.get_version_info()
 
     print("Version Info:")
     print("Record Version: {}".format(version_info.record_version))
@@ -29,7 +28,6 @@ async def main():
           .format(version_info.firmware_api_major_revision))
     print("Firmware API Minor Version: {}"
           .format(version_info.firmware_api_major_revision))
-
 
 if __name__ == "__main__":
     main_loop = asyncio.get_event_loop()

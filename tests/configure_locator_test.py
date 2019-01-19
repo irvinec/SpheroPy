@@ -3,16 +3,15 @@
 
 import asyncio
 import time
+from tests.test_utils import parse_args
 import spheropy
 
-from bluetooth_interface import BluetoothInterface
-
 async def main():
-    socket = BluetoothInterface()
-    socket.connect()
-    my_sphero = spheropy.Sphero(socket)
+    script_args = parse_args()
+    sphero = spheropy.Sphero()
+    await sphero.connect(num_retry_attempts=3, use_ble=script_args.use_ble)
 
-    locator_info = await my_sphero.get_locator_info()
+    locator_info = await sphero.get_locator_info()
 
     print('Original LocatorInfo:')
     print('X Pos: {}'.format(locator_info.pos_x))
@@ -23,18 +22,18 @@ async def main():
 
     print('Simulating aiming the Sphero')
     # Turn on the aiming LED
-    await my_sphero.set_back_led(0xFF)
+    await sphero.set_back_led(0xFF)
     # Turn off auto-correction for yaw tare
-    await my_sphero.configure_locator(False)
+    await sphero.configure_locator(False)
     time.sleep(1)
     # Adjust the heading by 90 degrees
-    await my_sphero.set_heading(90)
+    await sphero.set_heading(90)
     time.sleep(1)
     # Turn on auto-correction for yay tare
-    await my_sphero.configure_locator(True)
-    await my_sphero.set_back_led(0)
+    await sphero.configure_locator(True)
+    await sphero.set_back_led(0)
 
-    locator_info = await my_sphero.get_locator_info()
+    locator_info = await sphero.get_locator_info()
 
     print('New LocatorInfo:')
     print('X Pos: {}'.format(locator_info.pos_x))

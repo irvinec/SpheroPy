@@ -3,16 +3,15 @@
 
 import asyncio
 import time
+from tests.test_utils import parse_args
 import spheropy
 
-from bluetooth_interface import BluetoothInterface
-
 async def main():
-    socket = BluetoothInterface()
-    socket.connect()
-    my_sphero = spheropy.Sphero(socket)
+    script_args = parse_args()
+    sphero = spheropy.Sphero()
+    await sphero.connect(num_retry_attempts=3, use_ble=script_args.use_ble)
 
-    locator_info = await my_sphero.get_locator_info()
+    locator_info = await sphero.get_locator_info()
 
     print('LocatorInfo:')
     print('X Pos: {}'.format(locator_info.pos_x))

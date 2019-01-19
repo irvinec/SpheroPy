@@ -2,16 +2,15 @@
 """
 
 import asyncio
+from tests.test_utils import parse_args
 import spheropy
 
-from bluetooth_interface import BluetoothInterface
-
 async def main():
-    socket = BluetoothInterface()
-    socket.connect()
-    my_sphero = spheropy.Sphero(socket)
+    script_args = parse_args()
+    sphero = spheropy.Sphero()
+    await sphero.connect(num_retry_attempts=3, use_ble=script_args.use_ble)
 
-    power_state = await my_sphero.get_power_state()
+    power_state = await sphero.get_power_state()
 
     print("Power State:")
     print("Record Version: {}".format(power_state.record_version))
@@ -30,7 +29,6 @@ async def main():
     print("Battery Voltage: {}".format(power_state.battery_voltage))
     print("Lifetime Number of Recharges: {}".format(power_state.total_number_of_recharges))
     print("Seconds Since Last Recharge: {}".format(power_state.seconds_awake_since_last_recharge))
-
 
 if __name__ == "__main__":
     main_loop = asyncio.get_event_loop()
