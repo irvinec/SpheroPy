@@ -1,0 +1,69 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{215b07e3-70ff-4dda-b96b-334b12af6167}</ProjectGuid>
+    <ProjectHome />
+    <StartupFile>tests\set_rgb_led_test.py</StartupFile>
+    <SearchPath>spheropy</SearchPath>
+    <WorkingDirectory>.</WorkingDirectory>
+    <OutputPath>.</OutputPath>
+    <ProjectTypeGuids>{888888a0-9f3d-457c-b088-3a5042f75d52}</ProjectTypeGuids>
+    <LaunchProvider>Standard Python launcher</LaunchProvider>
+    <InterpreterId>Global|PythonCore|3.6-32</InterpreterId>
+    <IsWindowsApplication>False</IsWindowsApplication>
+    <EnableNativeCodeDebugging>True</EnableNativeCodeDebugging>
+    <CommandLineArguments>--ble</CommandLineArguments>
+    <InterpreterArguments>-i</InterpreterArguments>
+    <PublishUrl>
+    </PublishUrl>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'" />
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'" />
+  <PropertyGroup>
+    <VisualStudioVersion Condition=" '$(VisualStudioVersion)' == '' ">10.0</VisualStudioVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="conda\setup_spheropy_dev_env.py" />
+    <Compile Include="conda\setup_spheropy_env.py" />
+    <Compile Include="setup.py" />
+    <Compile Include="spheropy\spheropy.py" />
+    <Compile Include="spheropy\__init__.py" />
+    <Compile Include="tests\auto_reconnect_test.py" />
+    <Compile Include="tests\bluetooth_info_test.py" />
+    <Compile Include="tests\collision_test.py" />
+    <Compile Include="tests\configure_locator_test.py" />
+    <Compile Include="tests\end_to_end_tests.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="tests\get_locator_info_test.py" />
+    <Compile Include="tests\get_power_state_test.py" />
+    <Compile Include="tests\get_rgb_led_test.py" />
+    <Compile Include="tests\get_version_info_test.py" />
+    <Compile Include="tests\ping_test.py" />
+    <Compile Include="tests\power_state_change_test.py" />
+    <Compile Include="tests\roll_test.py" />
+    <Compile Include="tests\set_back_led_test.py" />
+    <Compile Include="tests\set_heading_test.py" />
+    <Compile Include="tests\set_rgb_led_test.py" />
+    <Compile Include="tests\test_utils.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="conda" />
+    <Folder Include="spheropy" />
+    <Folder Include="tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <InterpreterReference Include="CondaEnv|CondaEnv|spheropy-env" />
+    <InterpreterReference Include="Global|PythonCore|3.6-32" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="winble\winble.vcxproj">
+      <Name>winble</Name>
+      <Project>{c67c4629-4d48-44f8-a213-e4b49c107d3f}</Project>
+      <Private>True</Private>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
+</Project>

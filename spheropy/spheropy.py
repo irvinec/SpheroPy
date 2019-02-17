@@ -2,29 +2,44 @@
 
 Interact with Sphero devices.
 """
-import os
+import os, sys
 import uuid
 import threading
 import struct
+import queue
+import enum
 from collections import namedtuple
-# TODO: Wrap these (bluetooth related) imports in exception handling
 
+
+USE_PYBLUEZ = True
 try:
     import bluetooth # pybluez
     HAS_PYBLUEZ = True
 except Exception:
     HAS_PYBLUEZ = False
 
+USE_PYGATT = True
 try:
     import pygatt
     HAS_PYGATT = True
 except Exception:
     HAS_PYGATT = False
 
+USE_WINBLE = True
+try:
+    import winble
+    HAS_WINBLE = True
+except Exception:
+    HAS_WINBLE = False
+
 # TODO: Need more parameter validation on functions and throughout.
+
+# region Sphero
 
 class Sphero(object):
     """The main class that is used for interacting with a Sphero device."""
+
+#region Sphero public members
 
     def __init__(self, default_response_timeout_in_seconds=0.5):
         self.on_collision = []
@@ -33,9 +48,12 @@ class Sphero(object):
         self._bluetooth_interface = None
         self._default_response_timeout_in_seconds = default_response_timeout_in_seconds
         self._command_sequence_number = 0x00
-        self._commands_waiting_for_response = {}
 
-        self._receive_buffer = []
+        # Message processing members
+        self._commands_waiting_for_response = {}
+        # TODO: Consider passing in a max size for the queue.
+        self._message_receive_queue = queue.Queue()
+        self._message_processing_thread = None
 
     async def connect(self,
             search_name=None,
@@ -67,15 +85,23 @@ class Sphero(object):
                 Defaults to 1.
         """
         # Create the bluetooth interface
-        global HAS_PYGATT
         global HAS_PYBLUEZ
+        global USE_PYBLUEZ
+        global HAS_PYGATT
+        global USE_PYGATT
+        global HAS_WINBLE
+        global USE_WINBLE
         if bluetooth_interface is None:
-            if use_ble and HAS_PYGATT:
-                self._bluetooth_interface = BleInterface(search_name=search_name, address=address, port=port)
-            elif HAS_PYBLUEZ:
-                self._bluetooth_interface = BluetoothInterface(search_name=search_name, address=address, port=port)
+            if use_ble:
+                if (HAS_PYGATT and USE_PYGATT) or (HAS_WINBLE and USE_WINBLE):
+                    self._bluetooth_interface = BleInterface(search_name=search_name, address=address, port=port)
+                else:
+                    raise RuntimeError('Could not import a bluetooth LE Library.')
             else:
-                raise RuntimeError('Could not import either pybluez or pygatt. At least one is required.')
+                if HAS_PYBLUEZ and USE_PYBLUEZ:
+                    self._bluetooth_interface = BluetoothInterface(search_name=search_name, address=address, port=port)
+                else:
+                    raise RuntimeError('Could not import a bluetooth (non-BLE) library.')
         else:
             self._bluetooth_interface = bluetooth_interface
 
@@ -700,6 +726,10 @@ class Sphero(object):
 
         await self._send_command(command, response_timeout_in_seconds)
 
+#endregion Sphero public members
+
+# region Sphero private members
+
     async def _send_command(self,
             command,
             response_timeout_in_seconds):
@@ -717,9 +747,7 @@ class Sphero(object):
                 response_event.set()
 
             # Register the response handler for this commands sequence number
-            assert command.sequence_number not in self._commands_waiting_for_response, \
-                ("A response handler was already registered for the sequence number {}"
-                 .format(command.sequence_number))
+            assert command.sequence_number not in self._commands_waiting_for_response, f'A response handler was already registered for the sequence number {command.sequence_number}'
             self._commands_waiting_for_response[command.sequence_number] = handle_response
 
         self._bluetooth_interface.send(command.bytes)
@@ -738,52 +766,19 @@ class Sphero(object):
         return response_packet
 
     def _handle_data_received(self, received_data):
-        # TODO: we probably want to lock this buffer.
-        self._receive_buffer.extend(received_data)
-        response_packet = None
-        while len(self._receive_buffer) >= _MIN_PACKET_LENGTH:
-            try:
-                response_packet = _ResponsePacket(self._receive_buffer)
-                # we have a valid response to handle
-                # break out of the inner while loop to handle
-                # the response.
-                break
-            except BufferNotLongEnoughError:
-                # break out of inner loop and wait till we get more data.
-                break
-            except PacketParseError:
-                # There is an error in the packet format
-                # remove one byte from the buffer and try again.
-                self._receive_buffer.pop(0)
-                continue
-
-        if response_packet is not None:
-            if response_packet.is_async:
-                if response_packet.id_code is _ID_CODE_COLLISION_DETECTED:
-                    collision_info = _parse_collision_info(response_packet.data)
-                    for func in self.on_collision:
-                        # Schedule the callback on its own thread.
-                        # TODO: there is probably a more asyncio way of doing this, but do we care?
-                        # Maybe we can run the function on the main thread's event loop?
-                        # TODO: Refactor kicking off callback in seperate thread to a function
-                        callback_thread = threading.Thread(target=func, args=[collision_info])
-                        callback_thread.daemon = True
-                        callback_thread.start()
-                elif response_packet.id_code is _ID_CODE_POWER_NOTIFICATION:
-                    power_state = response_packet.data[0]
-                    for func in self.on_power_state_change:
-                        callback_thread = threading.Thread(target=func, args=[power_state])
-                        callback_thread.daemon = True
-                        callback_thread.start()
-            else:
-                # for ACK/sync responses we only need to call the registered callback.
-                sequence_number = response_packet.sequence_number
-                if sequence_number in self._commands_waiting_for_response:
-                    self._commands_waiting_for_response[sequence_number](response_packet)
-                    # NOTE: it is up to the callback/waiting function to remove the handler.
-
-            # remove the packet we just handled
-            del self._receive_buffer[:response_packet.packet_length]
+        self._message_receive_queue.put(received_data)
+        if self._message_processing_thread is None or not self._message_processing_thread.is_alive():
+            self._message_processing_thread = threading.Thread(
+                target=_process_messages,
+                args=
+                    [
+                        self._message_receive_queue,
+                        self._commands_waiting_for_response,
+                        self.on_collision,
+                        self.on_power_state_change
+                    ]
+            )
+            self._message_processing_thread.start()
 
     def _get_and_increment_command_sequence_number(self):
         result = self._command_sequence_number
@@ -795,6 +790,103 @@ class Sphero(object):
             self._command_sequence_number = 0x00
 
         return result
+
+#endregion Sphero private members
+
+def _process_messages(
+        message_queue,
+        commands_waiting_for_response,
+        on_collision_callbacks,
+        on_power_state_change_callbacks):
+    """Process messages received.
+
+    Parses the messages recieved 
+    """
+    message = []
+    # Keep going as long as there is a message in the queue,
+    # or if we are still processing or looking for more data
+    # in message.
+    while (not message_queue.empty()) or message:
+        response_packet = None
+        message_part = message_queue.get()
+        if message_part is None:
+            return
+
+        message.extend(message_part)
+        response_packet = _parse_message(message)
+        if response_packet is not None:
+            if response_packet.is_async:
+                _handle_async_response(
+                    response_packet,
+                    on_collision_callbacks,
+                    on_power_state_change_callbacks
+                )
+            else:
+                _handle_sync_response(
+                    response_packet,
+                    commands_waiting_for_response
+                )
+
+            # Remove the packet we just handled
+            del message[:response_packet.packet_length]
+
+        message_queue.task_done()
+
+def _parse_message(message):
+    while len(message) >= _MIN_PACKET_LENGTH:
+        response_packet = _ResponsePacket(message)
+        if response_packet.status == _ResponsePacketStatus.VALID:
+            # we have a valid response to handle
+            # break out of the inner while loop to handle
+            # the response.
+            return response_packet
+        elif response_packet.status == _ResponsePacketStatus.NOT_ENOUGH_BUFFER:
+            # Return and wait to get more data.
+            return None
+        else:
+            # There is an error in the packet format.
+            # Remove all the bytes until the next SOP1 byte.
+            del message[: message.index(_ResponsePacket._START_OF_PACKET_1)]
+            continue
+
+    return None
+
+def _handle_async_response(
+        response_packet,
+        on_collision_callbacks,
+        on_power_state_change_callbacks):
+    """
+    """
+    if response_packet.id_code is _ID_CODE_COLLISION_DETECTED:
+        collision_info = _parse_collision_info(response_packet.data)
+        for func in on_collision_callbacks:
+            # Schedule the callback on its own thread.
+            # TODO: there is probably a more asyncio way of doing this, but do we care?
+            # Maybe we can run the function on the main thread's event loop?
+            # TODO: Refactor kicking off callback in seperate thread to a function
+            callback_thread = threading.Thread(target=func, args=[collision_info])
+            callback_thread.daemon = True
+            callback_thread.start()
+    elif response_packet.id_code is _ID_CODE_POWER_NOTIFICATION:
+        power_state = response_packet.data[0]
+        for func in on_power_state_change_callbacks:
+            callback_thread = threading.Thread(target=func, args=[power_state])
+            callback_thread.daemon = True
+            callback_thread.start()
+
+def _handle_sync_response(
+        response_packet,
+        commands_waiting_for_response):
+    """
+    """
+    # for ACK/synchronous responses we only need to call the registered callback.
+    sequence_number = response_packet.sequence_number
+    if sequence_number in commands_waiting_for_response:
+        # TODO: check to make sure handler is callable before invoking.
+        commands_waiting_for_response[sequence_number](response_packet)
+        # NOTE: it is up to the callback/waiting function to remove the handler.
+
+#endregion Sphero
 
 #region Public Exceptions
 
@@ -808,33 +900,6 @@ class CommandTimedOutError(SpheroError):
 
     def __init__(self, message="Command timeout reached."):
         super().__init__(message)
-
-class PacketError(SpheroError):
-    """
-    """
-
-    def __init__(self, message="Error related to a packet occured."):
-        super().__init__(message)
-
-class PacketParseError(PacketError):
-    """
-    """
-
-    def __init__(self, message="Error parsing a packet."):
-        super().__init__(message)
-
-class BufferNotLongEnoughError(PacketParseError):
-    """
-    """
-
-    def __init__(
-            self,
-            expected_length,
-            actual_length,
-            message="Buffer not long enough for packet."):
-        super().__init__(message)
-        self.expected_length = expected_length
-        self.actual_length = actual_length
 
 #endregion
 
@@ -983,23 +1048,30 @@ class BleInterface(BluetoothInterfaceBase):
     DEFAULT_SEARCH_NAME = 'SK'
     DEFAULT_PORT = None
 
+    BleAdapterType = enum.Enum('BleAdapterType', 'PYGATT WINBLE')
+
     def __init__(self, search_name=None, address=None, port=None):
         super().__init__(search_name, address, port)
+        self._adapter = None
+        self._adapter_type = None
         self._device = None
 
     def connect(self, num_retry_attempts=1):
         super().connect(num_retry_attempts)
         for _ in range(num_retry_attempts):
             if self._address is None:
-                adapter, self._address = self._find_device()
+                if not self._find_adapter():
+                    continue
+
+                if not self._find_device():
+                    continue
 
             if self._address is not None:
-                self._device = adapter.connect(
-                    address=self._address,
-                    address_type=pygatt.BLEAddressType.random
-                )
+                self._connect()
+
                 self._turn_on_dev_mode()
-                self._device.subscribe(self._ROBOT_SERVICE_RESPONSE, self._response_callback)
+                self._subscribe()
+
                 is_connected = True
                 break
 
@@ -1012,22 +1084,50 @@ class BleInterface(BluetoothInterfaceBase):
                 f'Count not connect to device {self._address} after {num_retry_attempts} tries.'
             )
 
+    def _connect(self):
+        if self._adapter_type is BleInterface.BleAdapterType.PYGATT:
+            self._device = self._adapter.connect(
+                address=self._address,
+                address_type=pygatt.BLEAddressType.random
+            )
+        elif self._adapter_type is BleInterface.BleAdapterType.WINBLE:
+            self._device = self._adapter.connect(self._address)
+
+    def _subscribe(self):
+        if self._adapter_type == BleInterface.BleAdapterType.PYGATT:
+            self._device.subscribe(self._ROBOT_SERVICE_RESPONSE, self._pygatt_response_callback)
+        elif self._adapter_type is BleInterface.BleAdapterType.WINBLE:
+            self._device.subscribe(self._ROBOT_SERVICE_RESPONSE.bytes, self._winble_response_callback)
+
     def send(self, data):
         super().send(data)
         if self._device is not None:
             # TODO: need to understand how ble ack works
             # so we know if we should set the wait_for_response param.
-            self._device.char_write(self._ROBOT_SERVICE_CONTROL, data)
+            self._char_write(self._ROBOT_SERVICE_CONTROL, data)
 
     def disconnect(self):
         super().disconnect()
         if self._device is not None:
             self._device.disconnect()
 
-    def _response_callback(self, characteristic_handle, value):
+    def _pygatt_response_callback(self, characteristic_handle, value):
         """Callback for when data is received from device.
 
-        Calls registered data received handler
+        Calls registered data received handler.
+        Specific to PyGatt.
+        """
+        if self.data_received_handler is not None:
+            if callable(self.data_received_handler):
+                self.data_received_handler(value)
+            else:
+                raise ValueError('data_received_handler is not callable.')
+
+    def _winble_response_callback(self, value):
+        """Callback for when data is received from device.
+
+        Calls registered data received handler.
+        Specific to WinBle.
         """
         if self.data_received_handler is not None:
             if callable(self.data_received_handler):
@@ -1042,57 +1142,89 @@ class BleInterface(BluetoothInterfaceBase):
         and to receive data from the Sphero.
         """
         if self._device is not None:
-
-            self._device.char_write(
+            self._char_write(
                 self._BLE_SERVICE_ANTI_DOS,
-                bytes([ord(c) for c in self._ANTI_DOS_MESSAGE]))
-            self._device.char_write(
+                [ord(c) for c in self._ANTI_DOS_MESSAGE]
+            )
+            self._char_write(
                 self._BLE_SERVICE_TX_POWER,
-                bytes([self._TX_POWER_VALUE]))
+                [self._TX_POWER_VALUE]
+            )
             # Sending 0x01 to the wake service wakes the sphero.
-            self._device.char_write(self._BLE_SERVICE_WAKE, bytes([0x01]))
+            self._char_write(self._BLE_SERVICE_WAKE, [0x01])
 
-    def _find_device(self):
-        # Search for adapter
+    def _char_write(self, charId, data):
+        if self._adapter_type == BleInterface.BleAdapterType.PYGATT:
+            self._device.char_write(charId, bytes(data))
+        elif self._adapter_type == BleInterface.BleAdapterType.WINBLE:
+            self._device.char_write(charId.bytes, bytes(data))
+
+    def _find_adapter(self):
+        """
+        """
         adapter = None
+        adapter_type = None
         found_adapter = False
-        try:
-            adapter = pygatt.BGAPIBackend(serial_port=self._port)
-            adapter.start()
-            found_adapter = True
-        except pygatt.exceptions.NotConnectedError:
-            pass
 
-        if _is_windows():
-            for port_num in range(10):
-                try:
-                    adapter = pygatt.BGAPIBackend(serial_port=f'COM{port_num}')
-                    adapter.start()
-                    found_adapter = True
-                    break
-                except pygatt.exceptions.NotConnectedError:
-                    continue
-        elif _is_linux():
+        # Try pygatt BGAPI for all platforms first.
+        global HAS_PYGATT
+        global USE_PYGATT
+        if HAS_PYGATT and USE_PYGATT:
             try:
-                adapter = pygatt.backends.GATTToolBackend()
+                adapter = pygatt.BGAPIBackend(serial_port=self._port)
                 adapter.start()
+                adapter_type = BleInterface.BleAdapterType.PYGATT
                 found_adapter = True
             except pygatt.exceptions.NotConnectedError:
                 pass
 
-        if found_adapter:
-            # Look for the device
-            found_device_address = None
-            nearby_devices = adapter.scan()
-            if nearby_devices:
-                for device in nearby_devices:
-                    name = device['name']
-                    if name is not None and name.startswith(self._search_name):
-                        found_device_address = device['address']
-                        print(f'Found device named: {name} at {found_device_address}')
-                        break
+        # If we couldn't find the adapter,
+        # Try a platform specific adapter.
+        if not found_adapter:
+            global HAS_WINBLE
+            global USE_WINBLE
+            if _is_windows() and HAS_WINBLE and USE_WINBLE:
+                try:
+                    adapter = winble.WinBleAdapter()
+                    adapter.start()
+                    adapter_type = BleInterface.BleAdapterType.WINBLE
+                    found_adapter = True
+                except Exception:
+                    pass
+            elif _is_linux() and HAS_PYGATT and USE_PYGATT:
+                try:
+                    adapter = pygatt.backends.GATTToolBackend()
+                    adapter.start()
+                    adapter_type = BleInterface.BleAdapterType.PYGATT
+                    found_adapter = True
+                except pygatt.exceptions.NotConnectedError:
+                    pass
 
-        return adapter, found_device_address
+        if found_adapter:
+            self._adapter = adapter
+            self._adapter_type = adapter_type
+
+        return found_adapter
+
+    def _find_device(self):
+        """Looks for a matching nearby device."""
+        found_device = False
+        nearby_devices = None
+        try:
+            nearby_devices = self._adapter.scan()
+        except Exception:
+            pass
+
+        if nearby_devices is not None:
+            for device in nearby_devices:
+                name = device['name']
+                if name is not None and name.startswith(self._search_name):
+                    self._address = device['address']
+                    print(f'Found device named: {name} at {self._address}')
+                    found_device = True
+                    break
+
+        return found_device
 
 #endregion
 
@@ -1191,11 +1323,12 @@ def _parse_locator_info(data):
     """
     """
     return LocatorInfo(
-        struct.unpack('>h', bytes(data[0:2])),  # signed short
-        struct.unpack('>h', bytes(data[2:4])),  # signed short
-        struct.unpack('>h', bytes(data[4:6])),  # signed short
-        struct.unpack('>h', bytes(data[6:8])),  # signed short
-        struct.unpack('>H', bytes(data[8:10]))) # unsigned short
+        _pack_bytes_signed(data[0:2]),
+        _pack_bytes_signed(data[2:4]),
+        _pack_bytes_signed(data[4:6]),
+        _pack_bytes_signed(data[6:8]),
+        _pack_bytes(data[8:10])
+    )
 
 CollisionInfo = namedtuple(
     "CollisionInfo",
@@ -1217,14 +1350,15 @@ def _parse_collision_info(data):
             "data is not 16 bytes long. Actual length: {}".format(len(data)))
 
     return CollisionInfo(
-        struct.unpack('>h', bytes(data[0:2])),  # signed short
-        struct.unpack('>h', bytes(data[2:4])),  # signed short
-        struct.unpack('>h', bytes(data[4:6])),  # signed short
+        _pack_bytes_signed(data[0:2]),
+        _pack_bytes_signed(data[2:4]),
+        _pack_bytes_signed(data[4:6]),
         data[6],
         _pack_bytes(data[7:9]),
         _pack_bytes(data[9:11]),
         data[11],
-        _pack_bytes(data[12:16]))
+        _pack_bytes(data[12:16])
+    )
 
 #endregion
 
@@ -1601,6 +1735,13 @@ class _ClientCommandPacket(object):
         """
         return self._wait_for_response
 
+class _ResponsePacketStatus(enum.Enum):
+    VALID = enum.auto()
+    NOT_ENOUGH_BUFFER = enum.auto()
+    INVALID_DATA = enum.auto()
+    INCORRECT_LENGTH = enum.auto()
+
+
 class _ResponsePacket(object):
     """Represents a response packet from a Sphero to the client
 
@@ -1609,13 +1750,6 @@ class _ResponsePacket(object):
     Args:
         buffer (list): the raw byte buffer to
         try and parse as a packet
-
-    Raises:
-        PacketParseError:
-            When first bytes in buffer are not a valid packet.
-        BufferNotLongEnoughError:
-            When the start of the packet is valid,
-            but the whole packet was not passed in.
     """
     _START_OF_PACKET_1_INDEX = 0
     _START_OF_PACKET_2_INDEX = 1
@@ -1641,14 +1775,15 @@ class _ResponsePacket(object):
 
     def __init__(self, buffer):
         assert len(buffer) >= _MIN_PACKET_LENGTH, "Buffer is less than the minimum packet length"
-
+        self.status = _ResponsePacketStatus.VALID
         self._message_response_code = 0x00
         self._sequence_number = 0x00
         self._id_code = 0x00
 
         self._start_of_packet_byte_1 = buffer[self._START_OF_PACKET_1_INDEX]
         if self._start_of_packet_byte_1 != self._START_OF_PACKET_1:
-            raise PacketParseError(f'Invalid Start of packet byte: {self._start_of_packet_byte_1}')
+            self.status = _ResponsePacketStatus.INVALID_DATA
+            return
 
         self._start_of_packet_byte_2 = buffer[self._START_OF_PACKET_2_INDEX]
 
@@ -1664,20 +1799,24 @@ class _ResponsePacket(object):
             self._data_length = buffer[self._DATA_LENGTH_INDEX]
 
         if self._data_length < self._MIN_DATA_LENGTH:
-            raise PacketParseError("Found invalid data length (less than 1)")
+            self.status = _ResponsePacketStatus.INCORRECT_LENGTH
+            return
 
         if self._data_length + _MIN_PACKET_LENGTH - 1 > len(buffer):
-            raise BufferNotLongEnoughError(self._data_length + _MIN_PACKET_LENGTH - 1, len(buffer))
+            self.status = _ResponsePacketStatus.NOT_ENOUGH_BUFFER
+            return
 
         checksum_index = self._checksum_index
         self._data = buffer[self._DATA_START_INDEX:checksum_index]
         self._checksum = buffer[checksum_index]
 
         if not self._is_data_length_valid:
-            raise PacketParseError("Length of data does not match data length byte.")
+            self.status = _ResponsePacketStatus.INCORRECT_LENGTH
+            return
 
         if self._checksum is not _compute_checksum(buffer[:checksum_index]):
-            raise PacketParseError("Checksum is not correct")
+            self.status = _ResponsePacketStatus.INVALID_DATA
+            return
 
     @property
     def is_async(self):
@@ -1755,14 +1894,16 @@ def _compute_checksum(packet):
 def _get_byte_at_index(value, index):
     """
     """
+    # NOTE: We could also use int.to_bytes to just convert
+    # value into a byte array.
     return value >> index*8 & 0xFF
 
-# TODO: replace with struct.unpack
 def _pack_bytes(byte_list):
-    """Packs a list of bytes to be a single number.
+    """Packs a list of bytes to be a single unsigned int.
 
     The MSB is the leftmost byte (index 0).
     The LSB is the rightmost byte (index -1 or len(byte_list) - 1).
+    Big Endian order.
     Each value in byte_list is assumed to be a byte (range [0, 255]).
     This assumption is not validated in this function.
 
@@ -1772,15 +1913,24 @@ def _pack_bytes(byte_list):
     Returns:
         The number resulting from the packed bytes.
     """
-    left_shift_amount = 0
-    value = 0
-    # iterate backwards and pack the bits from right to left
-    for byte_value in reversed(byte_list):
-        assert byte_value >= 0 and byte_value <= 255
-        value |= byte_value << left_shift_amount
-        left_shift_amount += 8
+    return int.from_bytes(byte_list, 'big', signed=False)
 
-    return value
+def _pack_bytes_signed(byte_list):
+    """Packs a list of bytes to be a single signed int.
+
+    The MSB is the leftmost byte (index 0).
+    The LSB is the rightmost byte (index -1 or len(byte_list) - 1).
+    Big Endian order.
+    Each value in byte_list is assumed to be a byte (range [0, 255]).
+    This assumption is not validated in this function.
+
+    Args:
+        byte_list (list):
+
+    Returns:
+        The number resulting from the packed bytes.
+    """
+    return int.from_bytes(byte_list, 'big', signed=True)
 
 def _is_windows():
     """
