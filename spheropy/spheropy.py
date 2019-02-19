@@ -456,6 +456,45 @@ class Sphero(object):
             command,
             response_timeout_in_seconds=response_timeout_in_seconds)
 
+    async def set_stabilization(self,
+            stabilization,
+            wait_for_response=True,
+            reset_inactivity_timeout=True,
+            response_timeout_in_seconds=None):
+        """Turns the stabilization of the Sphero on or off.
+
+        This turns on or off the internal stabilization of the Sphero,
+        in which the IMU is used to match the ball's orientation to
+        its various set points.
+        Stabilization is enabled by default when the Sphero powers up.
+        You will want to disable stabilization when using Sphero
+        as an external input controller or even to save battery power
+        during testing that doesn't involve movement (orbBasic, etc.).
+        This can also be useful for aiming the Sphero.
+
+        Args:
+            stabilization (bool):
+                True to turn on.
+                False to turn off.
+            wait_for_response (bool, True):
+                If True, will wait for a response from the Sphero
+            reset_inactivity_timeout (bool, True):
+                If True, will reset the inactivity timer on the Sphero.
+            response_timeout_in_seconds (float, None):
+                The amount of time to wait for a response.
+                If not specified or None, uses the default timeout
+                passed in the constructor of this Sphero.
+        """
+        command = _create_set_stabilization_command(
+            stabilization=stabilization,
+            sequence_number=self._get_and_increment_command_sequence_number(),
+            wait_for_response=wait_for_response,
+            reset_inactivity_timeout=reset_inactivity_timeout)
+
+        await self._send_command(
+            command,
+            response_timeout_in_seconds=response_timeout_in_seconds)
+
     async def configure_collision_detection(self,
             turn_on_collision_detection,
             x_t, x_speed,
@@ -800,7 +839,7 @@ def _process_messages(
         on_power_state_change_callbacks):
     """Process messages received.
 
-    Parses the messages recieved 
+    Parses the messages recieved
     """
     message = []
     # Keep going as long as there is a message in the queue,
@@ -1513,6 +1552,23 @@ def _create_set_heading_command(
         ],
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
+
+_COMMAND_ID_SET_STABILIZATION = 0x02
+def _create_set_stabilization_command(
+        stabilization,
+        sequence_number,
+        wait_for_response,
+        reset_inactivity_timeout):
+    """
+    """
+    return _ClientCommandPacket(
+        device_id=_DEVICE_ID_SPHERO,
+        command_id=_COMMAND_ID_SET_STABILIZATION,
+        sequence_number=sequence_number,
+        data=[0x01 if stabilization else 0x00],
+        wait_for_response=wait_for_response,
+        reset_inactivity_timeout=reset_inactivity_timeout
+    )
 
 _COMMAND_ID_CONFIGURE_COLLISION_DETECTION = 0x12
 def _create_configure_collision_detection_command(
