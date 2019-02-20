@@ -34,6 +34,11 @@ except Exception:
 
 # TODO: Need more parameter validation on functions and throughout.
 
+class RollMode(enum.Enum):
+    NORMAL = enum.auto()
+    IN_PLACE_ROTATE = enum.auto()
+    FAST_ROTATE = enum.auto()
+
 # region Sphero
 
 class Sphero(object):
@@ -108,6 +113,12 @@ class Sphero(object):
         self._bluetooth_interface.data_received_handler = self._handle_data_received
         self._bluetooth_interface.connect(num_retry_attempts=num_retry_attempts)
         print('Connected to Sphero.')
+
+    def disconnect(self):
+        """Disconnect from the Sphero.
+        """
+        if self._bluetooth_interface:
+            self._bluetooth_interface.disconnect()
 
     async def ping(self,
             wait_for_response=True,
@@ -725,6 +736,7 @@ class Sphero(object):
     async def roll(self,
             speed,
             heading_in_degrees,
+            mode=RollMode.NORMAL,
             wait_for_response=True,
             reset_inactivity_timeout=True,
             response_timeout_in_seconds=None):
@@ -747,6 +759,8 @@ class Sphero(object):
             heading_in_degrees (int):
                 The relative heading in degrees.
                 The valid range is [0, 359]
+            mode (spheropy.RollMode):
+                Indicates the mode to use when rolling.
             wait_for_response (bool, True):
                 If True, will wait for a response from the Sphero
             reset_inactivity_timeout (bool, True):
@@ -759,6 +773,7 @@ class Sphero(object):
         command = _create_roll_command(
             speed,
             heading_in_degrees,
+            mode,
             sequence_number=self._get_and_increment_command_sequence_number(),
             wait_for_response=wait_for_response,
             reset_inactivity_timeout=reset_inactivity_timeout)
@@ -1700,6 +1715,7 @@ _COMMAND_ID_ROLL = 0x30
 def _create_roll_command(
         speed,
         heading_in_degrees,
+        mode,
         sequence_number,
         wait_for_response,
         reset_inactivity_timeout):
@@ -1707,8 +1723,21 @@ def _create_roll_command(
     """
     if heading_in_degrees < 0 or heading_in_degrees > 359:
         raise ValueError(
-            "heading_in_degrees must be in the range [0, 359]. heading was {}"
-            .format(heading_in_degrees))
+            f'heading_in_degrees must be in the range [0, 359]. heading was {heading_in_degrees}')
+
+    state = 0
+    if mode == RollMode.IN_PLACE_ROTATE:
+        speed = 0
+        state = 1
+    elif mode == RollMode.FAST_ROTATE:
+        state = 2
+    elif mode == RollMode.NORMAL:
+        if speed > 0:
+            state = 1
+        else:
+            state = 0
+    else:
+        raise ValueError('Unknown RollMode.')
 
     return _ClientCommandPacket(
         device_id=_DEVICE_ID_SPHERO,
@@ -1718,7 +1747,7 @@ def _create_roll_command(
             speed,
             _get_byte_at_index(heading_in_degrees, 1),
             _get_byte_at_index(heading_in_degrees, 0),
-            1 if speed > 0 else 0   # This is the STATE value that was originally used in CES firmware.
+            state
         ],
         wait_for_response=wait_for_response,
         reset_inactivity_timeout=reset_inactivity_timeout)
