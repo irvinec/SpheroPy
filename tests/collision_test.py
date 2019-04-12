@@ -43,7 +43,7 @@ async def main():
     await sphero.roll(127, 0)
     await asyncio.sleep(10)
     if not collision_detected:
-        print("FAIL: collision not detected")
+        print("FAIL: collision not detected.")
         await sphero.roll(0, 0)
         await sphero.set_rgb_led(blue=0xFF)
         await asyncio.sleep(4)
