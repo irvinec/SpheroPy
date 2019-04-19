@@ -12,6 +12,18 @@ Be aware that releases are frequent and breaking changes can happen at this stag
 SpheroPy is supported and tested on Windows and Linux.\
 SpheroPy is theoretically supported on Mac, but has not been tested on Mac.
 
+# Supported Devices
+SpheroPy currently supports and has been tested with:
+* Sphero 1.0
+* Sphero SPRK+
+
+SpheroPy theoretically supports but has not been tested with:
+* Sphero 2.0
+* Sphero SPRK
+* BB8
+
+Support for additional devices is desired and planned. If your device is not supported now, please check back in the future.
+
 # Dependencies
 SpheroPy requires Python 3.6 or greater.
 
