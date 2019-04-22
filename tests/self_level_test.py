@@ -1,6 +1,6 @@
 import asyncio
 import time
-from tests.test_utils import parse_args
+from test_utils import parse_args
 import spheropy
 
 

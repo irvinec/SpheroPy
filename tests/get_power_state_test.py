@@ -2,8 +2,9 @@
 """
 
 import asyncio
-from tests.test_utils import parse_args
+from test_utils import parse_args
 import spheropy
+
 
 async def main():
     script_args = parse_args()
@@ -27,8 +28,10 @@ async def main():
 
     print("Battery State: {}".format(battery_state_string))
     print("Battery Voltage: {}".format(power_state.battery_voltage))
-    print("Lifetime Number of Recharges: {}".format(power_state.total_number_of_recharges))
-    print("Seconds Since Last Recharge: {}".format(power_state.seconds_awake_since_last_recharge))
+    print("Lifetime Number of Recharges: {}".format(
+        power_state.total_number_of_recharges))
+    print("Seconds Since Last Recharge: {}".format(
+        power_state.seconds_awake_since_last_recharge))
 
 if __name__ == "__main__":
     main_loop = asyncio.get_event_loop()

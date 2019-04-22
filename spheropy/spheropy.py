@@ -1383,7 +1383,9 @@ BluetoothInfo = namedtuple("BluetoothInfo",
 def _parse_bluetooth_info(data):
     """
     """
-    return BluetoothInfo(''.join(chr(i) for i in data[:16]),
+    # Combine the bytes as a char string and then strip off extra bytes.
+    name = ''.join(chr(i) for i in data[:16]).partition('\0')[0]
+    return BluetoothInfo(name,
                          ''.join(chr(i) for i in data[16:28]),
                          ''.join(chr(i) for i in data[29:]))
 

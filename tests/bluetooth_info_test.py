@@ -2,8 +2,9 @@
 """
 
 import asyncio
-from tests.test_utils import parse_args
+from test_utils import parse_args
 import spheropy
+
 
 async def main():
     script_args = parse_args()
@@ -14,7 +15,8 @@ async def main():
 
     print("Original Bluetooth Info:")
     print("Name: {}".format(original_bluetooth_info.name))
-    print("Bluetooth Address: {}".format(original_bluetooth_info.bluetooth_address))
+    print("Bluetooth Address: {}".format(
+        original_bluetooth_info.bluetooth_address))
     print("ID Colors: {}".format(original_bluetooth_info.id_colors))
     print("")
 

@@ -3,7 +3,8 @@
 
 import asyncio
 import spheropy
-from tests.test_utils import parse_args
+from test_utils import parse_args
+
 
 async def main():
     script_args = parse_args()

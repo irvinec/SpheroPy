@@ -3,8 +3,9 @@
 
 import asyncio
 import time
-from tests.test_utils import parse_args
+from test_utils import parse_args
 import spheropy
+
 
 async def main():
     script_args = parse_args()
@@ -18,7 +19,7 @@ async def main():
     user_led_color = await sphero.get_rgb_led()
     if user_led_color != [0xFF, 0x00, 0x00]:
         print("FAIL: User LED color is not red=0xFF, green=0x00, blue=0x00 as expected. Actual = {}"
-            .format(user_led_color))
+              .format(user_led_color))
 
     await sphero.set_rgb_led(green=0xFF, save_as_user_led_color=True)
     time.sleep(2)
